@@ -1,0 +1,21 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="titusmodule">
+	<doc>
+		<description>This module checks if a red or blue image is presented</description>
+		<define name="PIXELCOUNT_CAMERA" value="front_camera|bottom_camera"
+			description="Video device to use" />
+	</doc>
+
+	<header>
+		<file name="titusmodule.h" />
+	</header>
+
+	<init fun="titusmodule_init()" />
+	<periodic fun="titusmodule_periodic()" start="titusmodule_start()" stop="titusmodule_stop()" autorun="FALSE" />
+
+	<makefile target="ap">
+		<file name="titusmodule.c" />
+	</makefile>
+</module>
+
