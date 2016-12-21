@@ -36,6 +36,7 @@
 
     <module name="pose_history"/>
     <module name="cv_opticflow">
+    	<define name="OPTICFLOW_METHOD" value="1"/>
       <define name="OPTICFLOW_CAMERA" value="bottom_camera"/>
     </module>
 
