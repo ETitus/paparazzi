@@ -2,18 +2,20 @@
 
 <flight_plan alt="1.5" ground_alt="0" lat0="51.990634" lon0="4.376789" max_dist_from_home="20" name="Rotorcraft Optitrack (Delft)" security_height="0.3">
   <header>
-#include "autopilot.h"
+		#include "autopilot.h"
+		#include "subsystems/datalink/datalink.h"
+		#include "subsystems/electrical.h"
 </header>
   <waypoints>
-    <waypoint name="HOME" x="1.4" y="-1.7"/>
-    <waypoint name="CLIMB" x="1.4" y="-1.7"/>
-    <waypoint name="GOAL" x="1.5" y="-1.8"/>
-    <waypoint name="STDBY" x="1.4" y="-1.7"/>
-    <waypoint name="TD" x="1.4" y="-1.7"/>
-    <waypoint name="Left" x="-0.2" y="-2.6"/>
-    <waypoint name="Right" x="3.1" y="-0.9"/>
-    <waypoint name="Front" x="0.5" y="-0.3"/>
-    <waypoint name="Back" x="2.1" y="-2.6"/>
+    <waypoint name="HOME" x="3.0" y="0.5"/>
+    <waypoint name="CLIMB" x="3.0" y="0.5"/>
+    <waypoint name="GOAL" x="3.0" y="0.5"/>
+    <waypoint name="STDBY" x="3.0" y="0.5"/>
+    <waypoint name="TD" x="3.0" y="0.5"/>
+    <waypoint name="Left" x="1.9" y="-0.2"/>
+    <waypoint name="Right" x="1.2" y="-1.4"/>
+    <waypoint name="Front" x="1.9" y="1.7"/>
+    <waypoint name="Back" x="3.9" y="-0.7"/>
     <waypoint lat="51.9906213" lon="4.3768628" name="FA1"/>
     <waypoint lat="51.9905874" lon="4.3767766" name="FA2"/>
     <waypoint lat="51.9906409" lon="4.3767226" name="FA3"/>
@@ -27,6 +29,10 @@
       <corner name="FA1"/>
     </sector>
   </sectors>
+  <exceptions>
+    <exception cond="And(datalink_time > 2, !GpsFixValid()) && !(nav_block == IndexOfBlock('Wait GPS')) && !(nav_block == IndexOfBlock('slowDecentLinkLoss'))" deroute="slowDecentLinkLoss"/>
+    <exception cond="electrical.bat_low && !(nav_block == IndexOfBlock('Wait GPS')) && !(nav_block == IndexOfBlock('Holding point')) && !(nav_block == IndexOfBlock('land')) && !(nav_block == IndexOfBlock('landed')) && !(nav_block == IndexOfBlock('flare')) && !(nav_block == IndexOfBlock('slowDecentLinkLoss'))" deroute="land"/>
+  </exceptions>
   <blocks>
     <block name="Wait GPS">
       <call fun="NavKillThrottle()"/>
@@ -81,6 +87,7 @@
       <go wp="TD"/>
     </block>
     <block name="flare">
+      <exception cond="block_time>2" deroute="landed"/>
       <exception cond="NavDetectGround()" deroute="Holding point"/>
       <exception cond="!nav_is_in_flight()" deroute="landed"/>
       <call fun="NavStartDetectGround()"/>
@@ -89,6 +96,11 @@
     <block name="landed">
       <call fun="NavKillThrottle()"/>
       <attitude pitch="0" roll="0" throttle="0" until="FALSE" vmode="throttle"/>
+    </block>
+    <block name="slowDecentLinkLoss">
+      <exception cond="block_time>2" deroute="landed"/>
+      <call fun="NavSetWaypointHere(WP_TD)"/>
+      <stay climb="nav_descend_vspeed" vmode="climb" wp="TD"/>
     </block>
   </blocks>
 </flight_plan>

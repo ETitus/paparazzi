@@ -28,9 +28,6 @@
 
 #include "modules/titusmodule/titusmodule.h"
 
-#include "modules/computer_vision/cv.h"
-#include "modules/computer_vision/lib/vision/image.h"
-
 //#include "state.h"
 #include "firmwares/rotorcraft/stabilization.h"
 #include "subsystems/abi.h"
@@ -115,37 +112,6 @@ void file_logger_stop(void);
 
 // The struct that is logged
 struct LogState TitusLog;
-struct video_listener *listenerTest = NULL;
-
-struct image_t *blackStripes(struct image_t *img);
-struct image_t *blackStripes(struct image_t *img)
-{
-
-	uint8_t *source = img->buf;
-	uint8_t *dest = img->buf;
-
-	// Go trough all the pixels
-	for (uint16_t y = 0; y < img->h; y++) {
-		for (uint16_t x = 0; x < img->w; x += 2) {
-			// Check if the color is inside the specified values
-			if (1==1)
-			{
-				// UYVY
-				dest[0] = 64;        // U
-				dest[1] = source[1];  // Y
-				dest[2] = 255;        // V
-				dest[3] = source[3];  // Y
-			} else {
-
-			}
-			// Go to the next 2 pixels
-			dest += 4;
-			source += 4;
-		}
-	}
-	return img; // Colorfilter did not make a new image
-}
-
 
 
 void titusmodule_init(void)
@@ -158,8 +124,6 @@ void titusmodule_init(void)
 	AbiBindMsgGPS(TITUSMODULE_GPS_ID, &gps_ev, titus_ctrl_gps_cb);
 	AbiBindMsgOPTICAL_FLOW(TITUSMODULE_OPTICAL_FLOW_ID, &optical_flow_ev, titus_ctrl_optical_flow_cb);
 	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
-
-//	listenerTest = cv_add_to_device(&OPTICFLOW_CAMERA, blackStripes);
 }
 
 
@@ -295,7 +259,7 @@ void file_logger_start(void)
 	if (file_logger != NULL) {
 		fprintf(
 				file_logger,
-				"counter,sys_time,rc_t,rc_x,rc_y,rc_z,distance,of_stamp,flow_x,flow_y,flow_der_x,flow_der_y,of_quality,of_size_divergence,vel_stamp,vel_x,vel_y,vel_noise,gyro_stamp,gyro_p,gyro_q,gyro_r,accel_stamp,accel_x,accel_y,accel_z,imu_stamp,imu_acc_x,imu_acc_y,imu_acc_z,imu_gyro_p,imu_gyro_q,imu_gyro_r,imu_mag_x,imu_mag_y,imu_mag_z,gps_stamp,gps_height,gps_heading,gps_speed,gps_ned_vel_n,gps_ned_vel_e,gps_ned_vel_d,gps_ned_vel_x,gps_ned_vel_y\n"
+				"counter,sys_time,rc_t,rc_x,rc_y,rc_z,distance,of_stamp,flow_x,flow_y,flow_der_x,flow_der_y,of_quality,of_size_divergence,vel_stamp,vel_x,vel_y,vel_noise,gyro_stamp,gyro_p,gyro_q,gyro_r,accel_stamp,accel_x,accel_y,accel_z,imu_stamp,imu_acc_x,imu_acc_y,imu_acc_z,imu_gyro_p,imu_gyro_q,imu_gyro_r,imu_mag_x,imu_mag_y,imu_mag_z,gps_stamp,gps_height,gps_heading,gps_speed,gps_ned_vel_n,gps_ned_vel_e,gps_ned_vel_d,gps_ned_vel_x,gps_ned_vel_y,gps_ecef_vel_x,gps_ecef_vel_y,gps_ecef_vel_z,gps_ecef_vel_rot_x,gps_ecef_vel_rot_y\n"
 		);
 	}
 }
@@ -307,7 +271,7 @@ void file_logger_periodic(void)
 	}
 	static uint32_t counter;
 	uint32_t now_ts = get_sys_time_usec();
-	fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f\n",
+	fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
 			counter,
 			now_ts,
 			// Rc messages
@@ -360,8 +324,13 @@ void file_logger_periodic(void)
 			(float)TitusLog.gps_gps_s->ned_vel.y/100,
 			(float)TitusLog.gps_gps_s->ned_vel.z/100,
 			((float)TitusLog.gps_gps_s->ned_vel.x/100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
-			((float)TitusLog.gps_gps_s->ned_vel.x/100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2)
-	);
+			((float)TitusLog.gps_gps_s->ned_vel.x/100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
+			(float)TitusLog.gps_gps_s->ecef_vel.x/-100,
+			(float)TitusLog.gps_gps_s->ecef_vel.y/100,
+			(float)TitusLog.gps_gps_s->ecef_vel.z/100,
+			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
+			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2)
+			);
 	counter++;
 }
 
