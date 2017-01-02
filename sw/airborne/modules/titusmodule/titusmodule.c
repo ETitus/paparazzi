@@ -61,10 +61,10 @@ PRINT_CONFIG_VAR(TITUSMODULE_IMU_GYRO_INT32_ID)
 #endif
 PRINT_CONFIG_VAR(TITUSMODULE_IMU_ACCEL_INT32_ID)
 
-#ifndef TITUSMODULE_IMU_LOWPASSED_ID
-#define TITUSMODULE_IMU_LOWPASSED_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(TITUSMODULE_IMU_LOWPASSED_ID)
+//#ifndef TITUSMODULE_IMU_LOWPASSED_ID
+//#define TITUSMODULE_IMU_LOWPASSED_ID ABI_BROADCAST
+//#endif
+//PRINT_CONFIG_VAR(TITUSMODULE_IMU_LOWPASSED_ID)
 
 #ifndef TITUSMODULE_GPS_ID
 #define TITUSMODULE_GPS_ID ABI_BROADCAST
@@ -86,7 +86,7 @@ PRINT_CONFIG_VAR(TITUSMODULE_VELOCITY_ESTIMATE_ID)
 static abi_event agl_ev;
 static abi_event imu_gyro_int32_ev;
 static abi_event imu_accel_int32_ev;
-static abi_event imu_lowpassed_ev;
+//static abi_event imu_lowpassed_ev;
 static abi_event gps_ev;
 static abi_event optical_flow_ev;
 static abi_event velocity_estimate_ev;
@@ -95,7 +95,7 @@ static abi_event velocity_estimate_ev;
 static void titus_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance);
 static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro);
 static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct Int32Vect3 *accel);
-static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag);
+//static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag);
 static void titus_ctrl_gps_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, struct GpsState *gps_s);
 static void titus_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float dist);
 static void titus_ctrl_velocity_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, float x, float y, float z, float noise);
@@ -120,7 +120,7 @@ void titusmodule_init(void)
 	AbiBindMsgAGL(TITUSMODULE_AGL_ID, &agl_ev, titus_ctrl_agl_cb);
 	AbiBindMsgIMU_GYRO_INT32(TITUSMODULE_IMU_GYRO_INT32_ID, &imu_gyro_int32_ev, titus_ctrl_imu_gyro_int32);
 	AbiBindMsgIMU_ACCEL_INT32(TITUSMODULE_IMU_ACCEL_INT32_ID, &imu_accel_int32_ev, titus_ctrl_imu_accel_int32);
-	AbiBindMsgIMU_LOWPASSED(TITUSMODULE_IMU_LOWPASSED_ID, &imu_lowpassed_ev, titus_ctrl_imu_lowpassed);
+	//	AbiBindMsgIMU_LOWPASSED(TITUSMODULE_IMU_LOWPASSED_ID, &imu_lowpassed_ev, titus_ctrl_imu_lowpassed);
 	AbiBindMsgGPS(TITUSMODULE_GPS_ID, &gps_ev, titus_ctrl_gps_cb);
 	AbiBindMsgOPTICAL_FLOW(TITUSMODULE_OPTICAL_FLOW_ID, &optical_flow_ev, titus_ctrl_optical_flow_cb);
 	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
@@ -259,7 +259,7 @@ void file_logger_start(void)
 	if (file_logger != NULL) {
 		fprintf(
 				file_logger,
-				"counter,sys_time,rc_t,rc_x,rc_y,rc_z,distance,of_stamp,flow_x,flow_y,flow_der_x,flow_der_y,of_quality,of_size_divergence,vel_stamp,vel_x,vel_y,vel_noise,gyro_stamp,gyro_p,gyro_q,gyro_r,accel_stamp,accel_x,accel_y,accel_z,imu_stamp,imu_acc_x,imu_acc_y,imu_acc_z,imu_gyro_p,imu_gyro_q,imu_gyro_r,imu_mag_x,imu_mag_y,imu_mag_z,gps_stamp,gps_height,gps_heading,gps_speed,gps_ned_vel_n,gps_ned_vel_e,gps_ned_vel_d,gps_ned_vel_x,gps_ned_vel_y,gps_ecef_vel_x,gps_ecef_vel_y,gps_ecef_vel_z,gps_ecef_vel_rot_x,gps_ecef_vel_rot_y\n"
+				"counter,sys_time,rc_t,rc_x,rc_y,rc_z,distance,of_stamp,flow_x,flow_y,flow_der_x,flow_der_y,of_quality,of_size_divergence,vel_stamp,vel_x,vel_y,vel_noise,gyro_stamp,gyro_p,gyro_q,gyro_r,accel_stamp,accel_x,accel_y,accel_z,gps_stamp,gps_height,gps_heading,gps_speed,gps_ned_vel_n,gps_ned_vel_e,gps_ned_vel_d,gps_ned_vel_x,gps_ned_vel_y,gps_ecef_vel_x,gps_ecef_vel_y,gps_ecef_vel_z,gps_ecef_vel_rot_x,gps_ecef_vel_rot_y\n"
 		);
 	}
 }
@@ -271,7 +271,7 @@ void file_logger_periodic(void)
 	}
 	static uint32_t counter;
 	uint32_t now_ts = get_sys_time_usec();
-	fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
+	fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
 			counter,
 			now_ts,
 			// Rc messages
@@ -304,17 +304,6 @@ void file_logger_periodic(void)
 			(float)TitusLog.accel_accel->x/1000,
 			(float)TitusLog.accel_accel->y/1000,
 			(float)TitusLog.accel_accel->z/1000,
-			// Doesnt log often? Check Scaling!
-			TitusLog.imu_stamp,
-			TitusLog.imu_accel->x/1000,
-			TitusLog.imu_accel->y/1000,
-			TitusLog.imu_accel->z/1000,
-			TitusLog.imu_gyro->p/12,
-			TitusLog.imu_gyro->q/12,
-			TitusLog.imu_gyro->r/12,
-			TitusLog.imu_mag->x/1000,
-			TitusLog.imu_mag->y/1000,
-			TitusLog.imu_mag->z/1000,
 			// GPS, check units and scaling
 			TitusLog.gps_stamp,
 			(float)TitusLog.gps_gps_s->hmsl/1000,
@@ -330,7 +319,7 @@ void file_logger_periodic(void)
 			(float)TitusLog.gps_gps_s->ecef_vel.z/100,
 			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
 			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2)
-			);
+	);
 	counter++;
 }
 
@@ -362,19 +351,34 @@ static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct
 	TitusLog.accel_stamp = stamp;
 	TitusLog.accel_accel = accel;
 }
-static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag)
-{
-	//	printf("imu updated \n");
-	TitusLog.imu_stamp = stamp;
-	TitusLog.imu_gyro = gyro;
-	TitusLog.imu_accel = accel;
-	TitusLog.imu_mag = mag;
-}
+//static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag)
+//{
+//	//	printf("imu updated \n");
+//	TitusLog.imu_stamp = stamp;
+//	TitusLog.imu_gyro = gyro;
+//	TitusLog.imu_accel = accel;
+//	TitusLog.imu_mag = mag;
+//}
 static void titus_ctrl_gps_cb(uint8_t sender_id, uint32_t stamp, struct GpsState *gps_s)
 {
 	//		printf("gps updated \n");
 	TitusLog.gps_stamp = stamp;
-	TitusLog.gps_gps_s = gps_s;
+	struct GpsState *temp_gps = gps_s;
+	TitusLog.gps_gps_s = temp_gps;
+
+
+//	// Edit the GPS message to test / fix 1 axis
+//	temp_gps->lla_pos.lat = 1;
+//	temp_gps->lla_pos.lon = 2;
+//	temp_gps->lla_pos.alt = 3;
+//
+//
+//	// Forward the editted GPS to the INS
+//	if ((sender_id == GPS_MULTI_ID) || (sender_id == GPS_TITUS)) {
+//		return;
+//	}
+//	uint32_t now_ts = get_sys_time_usec();
+//	AbiSendMsgGPS(GPS_TITUS, now_ts, gps_s);
 }
 static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float dist)
 {

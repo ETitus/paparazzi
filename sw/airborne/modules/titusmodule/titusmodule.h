@@ -26,6 +26,11 @@
 #ifndef TITUSMODULE_H
 #define TITUSMODULE_H
 
+// Define GPS titus
+#ifndef GPS_TITUS
+#define GPS_TITUS 44
+#endif
+
 #include <std.h>
 //#include "math/pprz_algebra_int.h"
 
