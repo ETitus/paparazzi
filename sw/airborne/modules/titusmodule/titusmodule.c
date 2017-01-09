@@ -30,8 +30,10 @@
 
 //#include "state.h"
 #include "firmwares/rotorcraft/stabilization.h"
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude.h"
 #include "subsystems/abi.h"
 #include "paparazzi.h"
+#include "state.h"
 #include "subsystems/radio_control.h"
 //#include "generated/airframe.h"
 //#include "firmwares/rotorcraft/autopilot.h"
@@ -113,7 +115,7 @@ void file_logger_stop(void);
 // The struct that is logged
 struct LogState TitusLog;
 
-
+//////////////////////////////////////////// Logging Module ///////////////////////////////////
 void titusmodule_init(void)
 {
 	// Subscribe to ABI messages
@@ -135,9 +137,15 @@ void titusmodule_start(void)
 
 void titusmodule_periodic(void)
 {
+	// Body Rates
+	TitusLog.body_rates_i = stateGetBodyRates_i(); // in rad/s
+
+	// Body Orientation
+	TitusLog.ned_to_body_orientation_quat = stateGetNedToBodyQuat_i();
+	TitusLog.ned_to_body_orientation_euler = stateGetNedToBodyEulers_i();
+
 	file_logger_periodic();
 }
-
 
 void titusmodule_stop(void)
 {
@@ -149,7 +157,6 @@ void titusmodule_stop(void)
 // Init V & H
 void h_ctrl_module_init(void)
 {
-	TitusLog.rc_t = 0;
 	TitusLog.rc_x = 0;
 	TitusLog.rc_y = 0;
 	TitusLog.rc_z = 0;
@@ -158,6 +165,7 @@ void h_ctrl_module_init(void)
 void v_ctrl_module_init(void)
 {
 	// Init V
+	TitusLog.rc_t = 0;
 }
 
 // Read H RC
@@ -170,32 +178,148 @@ void guidance_h_module_read_rc(void)
 	TitusLog.rc_z = radio_control.values[RADIO_YAW];
 }
 
+
+
+
+
+
+
+
+
+
+
+/* with a pgain of 100 and a scale of 2,
+ * you get an angle of 5.6 degrees for 1m pos error */
+#define GH_GAIN_SCALE 2
+
+#define MAX_SPEED_ERR SPEED_BFP_OF_REAL(16.)
+
+/*
+ * internal variables
+ */
+struct Int32Vect2 titusmodule_speed_err;
+struct Int32Vect2 titusmodule_trim_att_integrator;
+
+/** horizontal guidance command.
+ * In north/east with #INT32_ANGLE_FRAC
+ * @todo convert to real force command
+ */
+struct Int32Vect2  titusmodule_cmd_earth;
+
+// Stabilizing commands
+struct Int32Eulers test_sp_eu;
+
+
+
 // Run H
 void h_ctrl_module_run(bool in_flight)
 {
-	if (!in_flight) {
+	if (!in_flight)
+	{
 		// Reset integrators
 		stabilization_cmd[COMMAND_ROLL] = 0;
 		stabilization_cmd[COMMAND_PITCH] = 0;
 		stabilization_cmd[COMMAND_YAW] = 0;
-		stabilization_cmd[COMMAND_THRUST] = 0;
-	} else {
-		stabilization_cmd[COMMAND_ROLL] = TitusLog.rc_x;
-		stabilization_cmd[COMMAND_PITCH] = TitusLog.rc_y;
-		stabilization_cmd[COMMAND_YAW] = TitusLog.rc_z;
+	}
+	else
+	{
+		// set setpoints (i.e. stab_att_sp_quat or stab_att_sp_euler)
+
+
+		//		struct NedCoor_i speed_from_GPS;
+		//		speed_from_GPS = TitusLog.gps_gps_s->ned_vel;
+		////		speed_from_GPS.x = SPEED_BFP_OF_REAL(speed_from_GPS.x);
+		////		speed_from_GPS.y = SPEED_BFP_OF_REAL(speed_from_GPS.y);
+		//
+		//		/* maximum bank angle: default 20 deg, max 40 deg*/
+		//		static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
+		//				BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
+		//		static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
+		//
+		//
+		//
+		//		struct Int32Vect2 ref_speed;
+		//		ref_speed.x = 0;
+		//		ref_speed.y = 0;
+		//
+		//		/* compute speed error    */
+		//		VECT2_DIFF(titusmodule_speed_err, ref_speed, speed_from_GPS);
+		//		/* saturate it               */
+		//		VECT2_STRIM(titusmodule_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
+		//
+		//
+		//		/* run PID */
+		//		int32_t d_x =
+		//				((GUIDANCE_H_DGAIN * (titusmodule_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+		//		int32_t d_y =
+		//				((GUIDANCE_H_DGAIN * (titusmodule_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+		//		titusmodule_cmd_earth.x = d_x +
+		//				(0 >> (INT32_SPEED_FRAC - GH_GAIN_SCALE)) + /* speed feedforward gain */
+		//				(0 >> (INT32_ACCEL_FRAC -
+		//						GH_GAIN_SCALE));   /* acceleration feedforward gain */
+		//		titusmodule_cmd_earth.y = d_y +
+		//				(0 >> (INT32_SPEED_FRAC - GH_GAIN_SCALE)) + /* speed feedforward gain */
+		//				(0 >> (INT32_ACCEL_FRAC -
+		//						GH_GAIN_SCALE));   /* acceleration feedforward gain */
+		//
+		//
+		//		/* trim max bank angle from PD */
+		//		VECT2_STRIM(titusmodule_cmd_earth, -traj_max_bank, traj_max_bank);
+		//
+		//		/* Update pos & speed error integral, zero it if not in_flight.
+		//		 * Integrate twice as fast when not only POS but also SPEED are wrong,
+		//		 * but do not integrate POS errors when the SPEED is already catching up.
+		//		 */
+		//		/* ANGLE_FRAC (12) * GAIN (8) * LOOP_FREQ (9) -> INTEGRATOR HIGH RES ANGLE_FRAX (28) */
+		//		titusmodule_trim_att_integrator.x += (GUIDANCE_H_IGAIN * d_x);
+		//		titusmodule_trim_att_integrator.y += (GUIDANCE_H_IGAIN * d_y);
+		//		/* saturate it  */
+		//		VECT2_STRIM(titusmodule_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
+		//				(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
+		//		/* add it to the command */
+		//		titusmodule_cmd_earth.x += (titusmodule_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+		//		titusmodule_cmd_earth.y += (titusmodule_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+		//
+		//		VECT2_STRIM(titusmodule_cmd_earth, -total_max_bank, total_max_bank);
+		//
+		//		// Compute Angle Setpoints - Taken from Stab_att_quat
+		//		int32_t s_psi, c_psi;
+		//		PPRZ_ITRIG_SIN(s_psi, TitusLog.ned_to_body_orientation_euler->psi);
+		//		PPRZ_ITRIG_COS(c_psi, TitusLog.ned_to_body_orientation_euler->psi);
+		//		TitusLog.stab_sp_eu->phi = (-s_psi * titusmodule_cmd_earth.x + c_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+		//		TitusLog.stab_sp_eu->theta = -(c_psi * titusmodule_cmd_earth.x + s_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+
+
+		// Here it is going wrong
+		printf("before set\n");
+		test_sp_eu.phi = ANGLE_BFP_OF_REAL(RadOfDeg(-110.0));  // Works
+		printf("after phi set\n");
+		TitusLog.stab_sp_eu->theta = 0;  // segfault
+		printf("after set\n");
+
+
+		//		TitusLog.stab_sp_eu->psi = TitusLog.ned_to_body_orientation_euler->psi;
+		//		TitusLog.stab_sp_eu->psi = 0;
+		//
+		//		stabilization_attitude_set_rpy_setpoint_i(TitusLog.stab_sp_eu);
+		//		int32_quat_of_eulers(&stab_att_sp_quat, TitusLog.stab_sp_eu);
+		//		stab_att_sp_quat.qi = 0;
+		//		stab_att_sp_quat.qx = 0;
+		//		stab_att_sp_quat.qy = 0;
+		//		stab_att_sp_quat.qz = 0;
 	}
 }
 
 // Run H
 void v_ctrl_module_run(bool in_flight)
 {
-	if (!in_flight) {
+	if (!in_flight)
+	{
 		// Reset integrators
-		stabilization_cmd[COMMAND_ROLL] = 0;
-		stabilization_cmd[COMMAND_PITCH] = 0;
-		stabilization_cmd[COMMAND_YAW] = 0;
 		stabilization_cmd[COMMAND_THRUST] = 0;
-	} else {
+	}
+	else
+	{
 		stabilization_cmd[COMMAND_THRUST] = TitusLog.rc_t;
 	}
 }
@@ -211,12 +335,16 @@ void guidance_h_module_init(void)
 void guidance_h_module_enter(void)
 {
 	// run Enter module code here
+	stabilization_attitude_enter();
+	//	stabilization_attitude_set_failsafe_setpoint();
 }
 
 void guidance_h_module_run(bool in_flight)
 {
 	// Call full inner-/outerloop / horizontal-/vertical controller:
 	h_ctrl_module_run(in_flight);
+
+	stabilization_attitude_run(in_flight);
 }
 
 
@@ -259,7 +387,7 @@ void file_logger_start(void)
 	if (file_logger != NULL) {
 		fprintf(
 				file_logger,
-				"counter,sys_time,rc_t,rc_x,rc_y,rc_z,distance,of_stamp,flow_x,flow_y,flow_der_x,flow_der_y,of_quality,of_size_divergence,vel_stamp,vel_x,vel_y,vel_noise,gyro_stamp,gyro_p,gyro_q,gyro_r,accel_stamp,accel_x,accel_y,accel_z,gps_stamp,gps_height,gps_heading,gps_speed,gps_ned_vel_n,gps_ned_vel_e,gps_ned_vel_d,gps_ned_vel_x,gps_ned_vel_y,gps_ecef_vel_x,gps_ecef_vel_y,gps_ecef_vel_z,gps_ecef_vel_rot_x,gps_ecef_vel_rot_y\n"
+				"counter,sys_time,rc_t,rc_x,rc_y,rc_z,distance,of_stamp,flow_x,flow_y,flow_der_x,flow_der_y,of_quality,of_size_divergence,vel_stamp,vel_x,vel_y,vel_noise,gyro_stamp,gyro_p,gyro_q,gyro_r,accel_stamp,accel_x,accel_y,accel_z,body_rate_p,body_rate_q,body_rate_r,body_orien_phi,body_orien_theta,body_orien_psi,body_orien_qi,body_orien_qx,body_orien_qy,body_orien_qz,gps_stamp,gps_height,gps_heading,gps_speed,gps_ned_vel_n,gps_ned_vel_e,gps_ned_vel_d,gps_ned_vel_x,gps_ned_vel_y,gps_ecef_vel_x,gps_ecef_vel_y,gps_ecef_vel_z,gps_ecef_vel_rot_x,gps_ecef_vel_rot_y\n"
 		);
 	}
 }
@@ -271,10 +399,10 @@ void file_logger_periodic(void)
 	}
 	static uint32_t counter;
 	uint32_t now_ts = get_sys_time_usec();
-	fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
+	fprintf(file_logger, "%d,%d,%d,%d,%d,%d,%f,%d,%d,%d,%d,%d,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
 			counter,
 			now_ts,
-			// Rc messages
+			// Rc messages   ,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f
 			TitusLog.rc_t,
 			TitusLog.rc_x,
 			TitusLog.rc_y,
@@ -294,31 +422,44 @@ void file_logger_periodic(void)
 			TitusLog.vel_x,
 			TitusLog.vel_y,
 			TitusLog.vel_noise,
+			// Gryo
 			TitusLog.gyro_stamp,
-			// Check the #define INT32_RATE_FRAC 12
 			(float)TitusLog.gyro_gyro->p/12,
 			(float)TitusLog.gyro_gyro->q/12,
 			(float)TitusLog.gyro_gyro->r/12,
+			// Accel  Check the #define INT32_ACCEL_FRAC 10 VS 1000?????????
 			TitusLog.accel_stamp,
-			// Check the #define INT32_ACCEL_FRAC 10 VS 1000?????????
 			(float)TitusLog.accel_accel->x/1000,
 			(float)TitusLog.accel_accel->y/1000,
 			(float)TitusLog.accel_accel->z/1000,
+			// Body Rates
+			(float)TitusLog.body_rates_i->p/12,
+			(float)TitusLog.body_rates_i->q/12,
+			(float)TitusLog.body_rates_i->r/12,
+			// Body Orientation in Euler
+			(float)TitusLog.ned_to_body_orientation_euler->phi/12,
+			(float)TitusLog.ned_to_body_orientation_euler->theta/12,
+			(float)TitusLog.ned_to_body_orientation_euler->psi/12,
+			// Body Orientation in Quaternions
+			(float)TitusLog.ned_to_body_orientation_quat->qi/15,
+			(float)TitusLog.ned_to_body_orientation_quat->qx/15,
+			(float)TitusLog.ned_to_body_orientation_quat->qy/15,
+			(float)TitusLog.ned_to_body_orientation_quat->qz/15
 			// GPS, check units and scaling
-			TitusLog.gps_stamp,
-			(float)TitusLog.gps_gps_s->hmsl/1000,
-			(float)DegOfRad(TitusLog.gps_gps_s->course)/(1e7),
-			(float)TitusLog.gps_gps_s->gspeed/100,
-			(float)TitusLog.gps_gps_s->ned_vel.x/100,
-			(float)TitusLog.gps_gps_s->ned_vel.y/100,
-			(float)TitusLog.gps_gps_s->ned_vel.z/100,
-			((float)TitusLog.gps_gps_s->ned_vel.x/100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
-			((float)TitusLog.gps_gps_s->ned_vel.x/100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
-			(float)TitusLog.gps_gps_s->ecef_vel.x/-100,
-			(float)TitusLog.gps_gps_s->ecef_vel.y/100,
-			(float)TitusLog.gps_gps_s->ecef_vel.z/100,
-			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
-			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2)
+			//			TitusLog.gps_stamp,
+			//			(float)TitusLog.gps_gps_s->hmsl/1000,
+			//			(float)DegOfRad(TitusLog.gps_gps_s->course)/(1e7),
+			//			(float)TitusLog.gps_gps_s->gspeed/100,
+			//			(float)TitusLog.gps_gps_s->ned_vel.x/100,
+			//			(float)TitusLog.gps_gps_s->ned_vel.y/100,
+			//			(float)TitusLog.gps_gps_s->ned_vel.z/100,
+			//			((float)TitusLog.gps_gps_s->ned_vel.x/100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
+			//			((float)TitusLog.gps_gps_s->ned_vel.x/100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ned_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
+			//			(float)TitusLog.gps_gps_s->ecef_vel.x/-100,
+			//			(float)TitusLog.gps_gps_s->ecef_vel.y/100,
+			//			(float)TitusLog.gps_gps_s->ecef_vel.z/100,
+			//			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*sin(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*sin( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2),
+			//			((float)TitusLog.gps_gps_s->ecef_vel.x/-100)*cos(TitusLog.gps_gps_s->course/(1e7))+((float)TitusLog.gps_gps_s->ecef_vel.y/100)*cos( (TitusLog.gps_gps_s->course/(1e7)) - M_PI/2)
 	);
 	counter++;
 }
@@ -363,22 +504,7 @@ static void titus_ctrl_gps_cb(uint8_t sender_id, uint32_t stamp, struct GpsState
 {
 	//		printf("gps updated \n");
 	TitusLog.gps_stamp = stamp;
-	struct GpsState *temp_gps = gps_s;
-	TitusLog.gps_gps_s = temp_gps;
-
-
-//	// Edit the GPS message to test / fix 1 axis
-//	temp_gps->lla_pos.lat = 1;
-//	temp_gps->lla_pos.lon = 2;
-//	temp_gps->lla_pos.alt = 3;
-//
-//
-//	// Forward the editted GPS to the INS
-//	if ((sender_id == GPS_MULTI_ID) || (sender_id == GPS_TITUS)) {
-//		return;
-//	}
-//	uint32_t now_ts = get_sys_time_usec();
-//	AbiSendMsgGPS(GPS_TITUS, now_ts, gps_s);
+	TitusLog.gps_gps_s = gps_s;
 }
 static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float dist)
 {

@@ -26,10 +26,6 @@
 #ifndef TITUSMODULE_H
 #define TITUSMODULE_H
 
-// Define GPS titus
-#ifndef GPS_TITUS
-#define GPS_TITUS 44
-#endif
 
 #include <std.h>
 //#include "math/pprz_algebra_int.h"
@@ -86,11 +82,12 @@ struct LogState {
 	uint32_t accel_stamp;
 	struct Int32Vect3 *accel_accel;
 
-	// imu_lowpassed
-	uint32_t imu_stamp;
-	struct Int32Rates *imu_gyro;
-	struct Int32Vect3 *imu_accel;
-	struct Int32Vect3 *imu_mag;
+	// Body Rates
+	struct Int32Rates *body_rates_i; // in rad/s
+
+	// Body Orientation
+	struct Int32Quat *ned_to_body_orientation_quat;
+	struct Int32Eulers *ned_to_body_orientation_euler;
 
 	// gps
 	uint32_t gps_stamp;
@@ -101,6 +98,15 @@ struct LogState {
 	int rc_x;
 	int rc_y;
 	int rc_z;
+
+	// Stabilizing commands
+	struct Int32Eulers *stab_sp_eu;
+
+	//	// imu_lowpassed
+	//	uint32_t imu_stamp;
+	//	struct Int32Rates *imu_gyro;
+	//	struct Int32Vect3 *imu_accel;
+	//	struct Int32Vect3 *imu_mag;
 };
 
 #endif
