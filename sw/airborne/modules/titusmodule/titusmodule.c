@@ -112,6 +112,13 @@ void file_logger_start(void);
 void file_logger_periodic(void);
 void file_logger_stop(void);
 
+// Compute OptiTrack stabilization for 1/2 axes
+void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu);
+
+// Functions for Optical flow control
+float get_cov(float *a, float *b, int n_elements);
+float get_mean_array(float *a, int n_elements);
+
 // The struct that is logged
 struct LogState TitusLog;
 struct Int32Eulers ned_to_body_orientation_euler;
@@ -177,14 +184,7 @@ void guidance_h_module_read_rc(void)
 }
 
 
-
-
-
-
-
-
-
-
+///////////////////////////////////////// 1 axis optitrack control
 
 /* with a pgain of 100 and a scale of 2,
  * you get an angle of 5.6 degrees for 1m pos error */
@@ -210,6 +210,11 @@ struct Int32Vect2  titusmodule_cmd_earth;
 // Stabilizing commands
 struct Int32Eulers test_sp_eu;
 
+////////////////////////////////////// Optical Flow Control
+
+// number of time steps used for calculating the covariance (oscillations)
+#define COV_WINDOW_SIZE 60
+
 
 
 // Run H
@@ -224,76 +229,13 @@ void h_ctrl_module_run(bool in_flight)
 	}
 	else
 	{
-		// Heading is going wrong?
-//		ned_to_body_orientation_euler = *stateGetNedToBodyEulers_i();
-//		ned_to_body_orientation_euler.psi = stateGetNedToBodyEulers_i()->psi;
 
-		struct NedCoor_i vel_from_GPS;
-		struct NedCoor_i pos_from_GPS;
+//				test_sp_eu.phi = TitusLog.rc_x*0.2f;
+				test_sp_eu.psi = ned_to_body_orientation_euler.psi;
 
-		vel_from_GPS = *stateGetSpeedNed_i();
-		pos_from_GPS = *stateGetPositionNed_i();
+				computeOptiTrack(1,1,&test_sp_eu);
 
-		/* maximum bank angle: default 20 deg, max 40 deg*/
-		static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
-				BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
-		static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
-
-		/* compute position error    */
-		VECT2_DIFF(titusmodule_pos_err, titusmodule_ref_pos, pos_from_GPS);
-		/* saturate it               */
-		VECT2_STRIM(titusmodule_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
-
-		struct Int32Vect2 ref_speed;
-		ref_speed.x = 0;
-		ref_speed.y = 0;
-
-		/* compute speed error    */
-		VECT2_DIFF(titusmodule_speed_err, ref_speed, vel_from_GPS);
-		/* saturate it               */
-		VECT2_STRIM(titusmodule_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
-
-//		titusmodule_pos_err.x = 0;
-//		titusmodule_pos_err.y = 0;
-
-		/* run PID */
-		titusmodule_cmd_earth.x =
-				((GUIDANCE_H_PGAIN * titusmodule_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
-				((GUIDANCE_H_DGAIN * (titusmodule_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
-		titusmodule_cmd_earth.y =
-				((GUIDANCE_H_PGAIN * titusmodule_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
-				((GUIDANCE_H_DGAIN * (titusmodule_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
-
-		/* trim max bank angle from PD */
-		VECT2_STRIM(titusmodule_cmd_earth, -traj_max_bank, traj_max_bank);
-
-		titusmodule_trim_att_integrator.x += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.x);
-		titusmodule_trim_att_integrator.y += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.y);
-		/* saturate it  */
-		VECT2_STRIM(titusmodule_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
-				(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
-
-		/* add it to the command */
-		titusmodule_cmd_earth.x += (titusmodule_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
-		titusmodule_cmd_earth.y += (titusmodule_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
-
-		VECT2_STRIM(titusmodule_cmd_earth, -total_max_bank, total_max_bank);
-
-		// Compute Angle Setpoints - Taken from Stab_att_quat
-		int32_t s_psi, c_psi;
-		PPRZ_ITRIG_SIN(s_psi, ned_to_body_orientation_euler.psi);
-		PPRZ_ITRIG_COS(c_psi, ned_to_body_orientation_euler.psi);
-
-		test_sp_eu.phi = (-s_psi * titusmodule_cmd_earth.x + c_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
-		test_sp_eu.theta = -(c_psi * titusmodule_cmd_earth.x + s_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
-
-		test_sp_eu.psi = ned_to_body_orientation_euler.psi;
-
-		stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
-
-
-
-
+				stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
 
 		//		// Here it is going wrong
 		//		printf("before set\n");
@@ -302,6 +244,128 @@ void h_ctrl_module_run(bool in_flight)
 		//		TitusLog.stab_sp_eu->theta = 0;  // segfault
 		//		printf("after set\n");
 	}
+}
+
+void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu)
+{
+
+	bool optiVelOnly;
+	optiVelOnly = 0;
+
+	// Heading is going wrong?
+	//		ned_to_body_orientation_euler = *stateGetNedToBodyEulers_i();
+	//		ned_to_body_orientation_euler.psi = stateGetNedToBodyEulers_i()->psi;
+
+	struct NedCoor_i vel_from_GPS;
+	struct NedCoor_i pos_from_GPS;
+
+	vel_from_GPS = *stateGetSpeedNed_i();
+	pos_from_GPS = *stateGetPositionNed_i();
+
+	/* maximum bank angle: default 20 deg, max 40 deg*/
+	static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
+			BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
+	static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
+
+	/* compute position error    */
+	VECT2_DIFF(titusmodule_pos_err, titusmodule_ref_pos, pos_from_GPS);
+	/* saturate it               */
+	VECT2_STRIM(titusmodule_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
+
+	struct Int32Vect2 ref_speed;
+	ref_speed.x = 0;
+	ref_speed.y = 0;
+
+	/* compute speed error    */
+	VECT2_DIFF(titusmodule_speed_err, ref_speed, vel_from_GPS);
+	/* saturate it               */
+	VECT2_STRIM(titusmodule_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
+
+	if(optiVelOnly)
+	{
+		titusmodule_pos_err.x = 0;
+		titusmodule_pos_err.y = 0;
+	}
+
+	/* run PID */
+	titusmodule_cmd_earth.x =
+			((GUIDANCE_H_PGAIN * titusmodule_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+			((GUIDANCE_H_DGAIN * (titusmodule_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+	titusmodule_cmd_earth.y =
+			((GUIDANCE_H_PGAIN * titusmodule_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+			((GUIDANCE_H_DGAIN * (titusmodule_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+
+	/* trim max bank angle from PD */
+	VECT2_STRIM(titusmodule_cmd_earth, -traj_max_bank, traj_max_bank);
+
+	titusmodule_trim_att_integrator.x += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.x);
+	titusmodule_trim_att_integrator.y += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.y);
+	/* saturate it  */
+	VECT2_STRIM(titusmodule_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
+			(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
+
+	/* add it to the command */
+	titusmodule_cmd_earth.x += (titusmodule_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+	titusmodule_cmd_earth.y += (titusmodule_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+
+	VECT2_STRIM(titusmodule_cmd_earth, -total_max_bank, total_max_bank);
+
+	// Compute Angle Setpoints - Taken from Stab_att_quat
+	int32_t s_psi, c_psi;
+	PPRZ_ITRIG_SIN(s_psi, ned_to_body_orientation_euler.psi);
+	PPRZ_ITRIG_COS(c_psi, ned_to_body_orientation_euler.psi);
+
+
+	if(phi)
+	{
+		opti_sp_eu->phi = (-s_psi * titusmodule_cmd_earth.x + c_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+	}
+	if(theta)
+	{
+		opti_sp_eu->theta= -(c_psi * titusmodule_cmd_earth.x + s_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+	}
+}
+
+/**
+ * Get the mean value of an array
+ * @param[out] mean The mean value
+ * @param[in] *a The array
+ * @param[in] n Number of elements in the array
+ */
+float get_mean_array(float *a, int n_elements)
+{
+  // determine the mean for the vector:
+  float mean = 0;
+  for (unsigned int i = 0; i < n_elements; i++) {
+    mean += a[i];
+  }
+  mean /= n_elements;
+
+  return mean;
+}
+
+/**
+ * Get the covariance of two arrays
+ * @param[out] cov The covariance
+ * @param[in] *a The first array
+ * @param[in] *b The second array
+ * @param[in] n Number of elements in the arrays
+ */
+float get_cov(float *a, float *b, int n_elements)
+{
+  // Determine means for each vector:
+  float mean_a = get_mean_array(a, n_elements);
+  float mean_b = get_mean_array(b, n_elements);
+
+  // Determine the covariance:
+  float cov = 0;
+  for (unsigned int i = 0; i < n_elements; i++) {
+    cov += (a[i] - mean_a) * (b[i] - mean_b);
+  }
+
+  cov /= n_elements;
+
+  return cov;
 }
 
 // Run H
