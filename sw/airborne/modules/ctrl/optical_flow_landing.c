@@ -482,6 +482,8 @@ static void vertical_ctrl_agl_cb(uint8_t sender_id, float distance)
 }
 static void vertical_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float dist)
 {
+	printf("size_divergence: %f \n",size_divergence);
+	printf("\n");
   divergence_vision = size_divergence;
   vision_message_nr++;
   if (vision_message_nr > 10) { vision_message_nr = 0; }

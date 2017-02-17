@@ -32,6 +32,7 @@
 #include "firmwares/rotorcraft/stabilization.h"
 #include "firmwares/rotorcraft/stabilization/stabilization_attitude.h"
 #include "subsystems/abi.h"
+#include "subsystems/datalink/telemetry.h"
 #include "paparazzi.h"
 #include "state.h"
 #include "subsystems/radio_control.h"
@@ -119,71 +120,6 @@ void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu);
 float get_cov(float *a, float *b, int n_elements);
 float get_mean_array(float *a, int n_elements);
 
-// The struct that is logged
-struct LogState TitusLog;
-struct Int32Eulers ned_to_body_orientation_euler;
-struct Int32Quat ned_to_body_orientation_quat;
-
-//////////////////////////////////////////// Logging Module ///////////////////////////////////
-void titusmodule_init(void)
-{
-	// Subscribe to ABI messages
-	AbiBindMsgAGL(TITUSMODULE_AGL_ID, &agl_ev, titus_ctrl_agl_cb);
-	AbiBindMsgIMU_GYRO_INT32(TITUSMODULE_IMU_GYRO_INT32_ID, &imu_gyro_int32_ev, titus_ctrl_imu_gyro_int32);
-	AbiBindMsgIMU_ACCEL_INT32(TITUSMODULE_IMU_ACCEL_INT32_ID, &imu_accel_int32_ev, titus_ctrl_imu_accel_int32);
-	//	AbiBindMsgIMU_LOWPASSED(TITUSMODULE_IMU_LOWPASSED_ID, &imu_lowpassed_ev, titus_ctrl_imu_lowpassed);
-	AbiBindMsgGPS(TITUSMODULE_GPS_ID, &gps_ev, titus_ctrl_gps_cb);
-	AbiBindMsgOPTICAL_FLOW(TITUSMODULE_OPTICAL_FLOW_ID, &optical_flow_ev, titus_ctrl_optical_flow_cb);
-	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
-}
-
-
-
-void titusmodule_start(void)
-{
-	file_logger_start();
-}
-
-void titusmodule_periodic(void)
-{
-	// Body Rates
-	TitusLog.body_rates_i = stateGetBodyRates_i(); // in rad/s
-
-	file_logger_periodic();
-}
-
-void titusmodule_stop(void)
-{
-	file_logger_stop();
-}
-//////////////////////////////////////////// Control Module ///////////////////////////////////
-
-
-// Init V & H
-void h_ctrl_module_init(void)
-{
-	TitusLog.rc_x = 0;
-	TitusLog.rc_y = 0;
-	TitusLog.rc_z = 0;
-}
-
-void v_ctrl_module_init(void)
-{
-	// Init V
-	TitusLog.rc_t = 0;
-}
-
-// Read H RC
-void guidance_h_module_read_rc(void)
-{
-	//	printf("h read RC");
-	TitusLog.rc_t = radio_control.values[RADIO_THROTTLE];
-	TitusLog.rc_x = radio_control.values[RADIO_ROLL];
-	TitusLog.rc_y = radio_control.values[RADIO_PITCH];
-	TitusLog.rc_z = radio_control.values[RADIO_YAW];
-}
-
-
 ///////////////////////////////////////// 1 axis optitrack control
 
 /* with a pgain of 100 and a scale of 2,
@@ -210,10 +146,143 @@ struct Int32Vect2  titusmodule_cmd_earth;
 // Stabilizing commands
 struct Int32Eulers test_sp_eu;
 
+// Body orientations
+struct Int32Eulers ned_to_body_orientation_euler;
+struct Int32Quat ned_to_body_orientation_quat;
+
 ////////////////////////////////////// Optical Flow Control
+
+// used for calculating velocity from height measurements:
+#include <time.h>
+long previous_time;
 
 // number of time steps used for calculating the covariance (oscillations)
 #define COV_WINDOW_SIZE 60
+
+// How fast the gain ramps up
+#define GAINRAMP 0.05
+
+int vision_message_nr;
+int previous_message_nr;
+
+float divergence;
+float divergence_vision;
+float dt;
+float dt2;
+float cov_div;
+float normalized_thrust;
+uint32_t thrust;
+float pstate;
+float pused;
+float err;
+
+float thrust_history[COV_WINDOW_SIZE];
+float divergence_history[COV_WINDOW_SIZE];
+float past_divergence_history[COV_WINDOW_SIZE];
+unsigned long ind_hist;
+
+struct OpticalFlowTitus of_titusmodule;
+
+// The struct that is logged
+struct LogState TitusLog;
+
+// sending the divergence message to the ground station:
+static void send_titusmodule(struct transport_tx *trans, struct link_device *dev)
+{
+	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence, &divergence_vision,&cov_div,&TitusLog.distance,&err,&pused,&of_titusmodule.sum_err,&thrust);
+}
+
+
+
+//////////////////////////////////////////// Logging Module ///////////////////////////////////
+void titusmodule_init(void)
+{
+	// Subscribe to ABI messages
+	AbiBindMsgAGL(TITUSMODULE_AGL_ID, &agl_ev, titus_ctrl_agl_cb);
+	AbiBindMsgIMU_GYRO_INT32(TITUSMODULE_IMU_GYRO_INT32_ID, &imu_gyro_int32_ev, titus_ctrl_imu_gyro_int32);
+	AbiBindMsgIMU_ACCEL_INT32(TITUSMODULE_IMU_ACCEL_INT32_ID, &imu_accel_int32_ev, titus_ctrl_imu_accel_int32);
+	//	AbiBindMsgIMU_LOWPASSED(TITUSMODULE_IMU_LOWPASSED_ID, &imu_lowpassed_ev, titus_ctrl_imu_lowpassed);
+	AbiBindMsgGPS(TITUSMODULE_GPS_ID, &gps_ev, titus_ctrl_gps_cb);
+	AbiBindMsgOPTICAL_FLOW(TITUSMODULE_OPTICAL_FLOW_ID, &optical_flow_ev, titus_ctrl_optical_flow_cb);
+	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
+
+	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_TITUSMODULE, send_titusmodule);
+}
+
+
+
+void titusmodule_start(void)
+{
+//	file_logger_start();
+}
+
+void titusmodule_periodic(void)
+{
+	// Body Rates
+	TitusLog.body_rates_i = stateGetBodyRates_i(); // in rad/s
+
+//	file_logger_periodic();
+}
+
+void titusmodule_stop(void)
+{
+//	file_logger_stop();
+}
+//////////////////////////////////////////// Control Module ///////////////////////////////////
+
+
+// Init V & H
+void h_ctrl_module_init(void)
+{
+	TitusLog.rc_x = 0;
+	TitusLog.rc_y = 0;
+	TitusLog.rc_z = 0;
+}
+
+void v_ctrl_module_init(void)
+{
+	// Init V
+	TitusLog.rc_t = 0;
+
+	of_titusmodule.lp_factor = 0.95f;
+	of_titusmodule.divergence_setpoint = 0.0f;
+	of_titusmodule.nominal_thrust = 0.640f; //0.700f for large//  0.666f; for unknown // 0.640f with small battery
+	of_titusmodule.delay_steps = 40;
+	of_titusmodule.cov_set_point = -0.025f;
+	of_titusmodule.sum_err = 0.0f;
+
+	struct timespec spec;
+	clock_gettime(CLOCK_REALTIME, &spec);
+	previous_time = spec.tv_nsec / 1.0E6;
+	//previous_time = time(NULL);
+
+	// clear histories:
+	ind_hist = 0;
+	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
+		thrust_history[i] = 0;
+		divergence_history[i] = 0;
+	}
+
+	divergence = 0;
+	divergence_vision = 0.0f;
+	cov_div = 0.0f;
+	dt = 0.0f;
+	vision_message_nr = 1;
+	previous_message_nr = 0;
+}
+
+// Read H RC
+void guidance_h_module_read_rc(void)
+{
+	//	printf("h read RC");
+	TitusLog.rc_t = radio_control.values[RADIO_THROTTLE];
+	TitusLog.rc_x = radio_control.values[RADIO_ROLL];
+	TitusLog.rc_y = radio_control.values[RADIO_PITCH];
+	TitusLog.rc_z = radio_control.values[RADIO_YAW];
+}
+
+
+
 
 
 
@@ -230,20 +299,171 @@ void h_ctrl_module_run(bool in_flight)
 	else
 	{
 
-//				test_sp_eu.phi = TitusLog.rc_x*0.2f;
-				test_sp_eu.psi = ned_to_body_orientation_euler.psi;
+		//				test_sp_eu.phi = TitusLog.rc_x*0.2f;
+		test_sp_eu.psi = ned_to_body_orientation_euler.psi;
 
-				computeOptiTrack(1,1,&test_sp_eu);
+		computeOptiTrack(1,1,&test_sp_eu);
 
-				stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
-
-		//		// Here it is going wrong
-		//		printf("before set\n");
-		//		test_sp_eu.phi = ANGLE_BFP_OF_REAL(RadOfDeg(-110.0));  // Works
-		//		printf("after phi set\n");
-		//		TitusLog.stab_sp_eu->theta = 0;  // segfault
-		//		printf("after set\n");
+		stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
 	}
+}
+
+
+
+// Run H
+void v_ctrl_module_run(bool in_flight)
+{
+	if (!in_flight)
+	{
+		// Reset integrators
+		stabilization_cmd[COMMAND_THRUST] = 0;
+	}
+	else
+	{
+		int32_t nominal_throttle = of_titusmodule.nominal_thrust * MAX_PPRZ;
+
+		float div_factor; // factor that maps divergence in pixels as received from vision to /frame
+		// ensure dt >= 0
+		if (dt < 0) { dt = 0.0f; }
+
+		// get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
+		struct timespec spec;
+		clock_gettime(CLOCK_REALTIME, &spec);
+		long new_time = spec.tv_nsec / 1.0E6;
+		long delta_t = new_time - previous_time;
+		dt2 = ((float)delta_t) / 1000.0f;
+		dt += dt2;
+		if (dt > 10.0f) {
+			dt = 0.0f;
+			return;
+		}
+		previous_time = new_time;
+
+		if (vision_message_nr != previous_message_nr && dt > 1E-5 && ind_hist > 1) {
+			// TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
+			div_factor = -1.28f; // magic number comprising field of view etc.
+			float new_divergence = (divergence_vision * div_factor) / dt;
+
+			if (fabs(new_divergence - divergence) > 0.20) {
+				if (new_divergence < divergence) { new_divergence = divergence - 0.10f; }
+				else { new_divergence = divergence + 0.10f; }
+			}
+			// low-pass filter the divergence:
+			divergence = divergence * of_titusmodule.lp_factor + (new_divergence * (1.0f - of_titusmodule.lp_factor));
+			previous_message_nr = vision_message_nr;
+			dt = 0.0f;
+		} else {
+			// after re-entering the module, the divergence should be equal to the set point:
+			if (ind_hist <= 1) {
+				divergence = of_titusmodule.divergence_setpoint;
+				for (int i = 0; i < COV_WINDOW_SIZE; i++) {
+					thrust_history[i] = 0;
+					divergence_history[i] = 0;
+				}
+				ind_hist++;
+				dt = 0.0f;
+				stabilization_cmd[COMMAND_THRUST] = nominal_throttle;
+
+			}
+			// else: do nothing, let dt increment
+			return;
+		}
+
+
+		err = of_titusmodule.divergence_setpoint - divergence;
+
+
+		// Time oplopende gain hier
+
+		pused += dt2*GAINRAMP;
+		dt2 = 0;
+
+		// nominal throttle times angles?
+		thrust = nominal_throttle + pused * err * MAX_PPRZ; //+ of_titusmodule.igain * of_titusmodule.sum_err * MAX_PPRZ;
+
+		normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
+		        thrust_history[ind_hist % COV_WINDOW_SIZE] = normalized_thrust;
+		divergence_history[ind_hist % COV_WINDOW_SIZE] = divergence;
+		int ind_past = (ind_hist % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
+		while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
+		float past_divergence = divergence_history[ind_past];
+		past_divergence_history[ind_hist % COV_WINDOW_SIZE] = 100.0f * past_divergence;
+		ind_hist++;
+
+		// only take covariance into account if there are enough samples in the histories:
+		if (ind_hist >= COV_WINDOW_SIZE) {
+			cov_div = get_cov(past_divergence_history, divergence_history, COV_WINDOW_SIZE);
+		} else {
+			cov_div = of_titusmodule.cov_set_point;
+		}
+
+
+		of_titusmodule.sum_err += err;
+		stabilization_cmd[COMMAND_THRUST] = thrust;
+	}
+}
+
+////////////////////////////////////////////////////////////////////
+// Call our controllers
+// Implement own Horizontal loops
+void guidance_h_module_init(void)
+{
+	h_ctrl_module_init();
+}
+
+void guidance_h_module_enter(void)
+{
+	// run Enter module code here
+	stabilization_attitude_enter();
+
+	VECT2_COPY(titusmodule_ref_pos, *stateGetPositionNed_i());
+	//	stabilization_attitude_set_failsafe_setpoint();
+}
+
+void guidance_h_module_run(bool in_flight)
+{
+	// Call full inner-/outerloop / horizontal-/vertical controller:
+	h_ctrl_module_run(in_flight);
+
+	stabilization_attitude_run(in_flight);
+}
+
+
+
+// Implement own Vertical loops
+void guidance_v_module_init(void)
+{
+	// initialization of your custom vertical controller goes here
+	v_ctrl_module_init();
+}
+
+void guidance_v_module_enter(void)
+{
+	// your code that should be executed when entering this vertical mode goes here
+	// reset integrator
+	of_titusmodule.sum_err = 0.0f;
+
+	ind_hist = 0;
+	pused = 1;
+	cov_div = of_titusmodule.cov_set_point;
+	divergence = of_titusmodule.divergence_setpoint;
+	dt = 0.0f;
+	dt2 = 0.0f;
+	struct timespec spec;
+	clock_gettime(CLOCK_REALTIME, &spec);
+	previous_time = spec.tv_nsec / 1.0E6;
+	vision_message_nr = 1;
+	previous_message_nr = 0;
+	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
+		thrust_history[i] = 0;
+		divergence_history[i] = 0;
+	}
+}
+
+void guidance_v_module_run(bool in_flight)
+{
+	// your vertical controller goes here
+	v_ctrl_module_run(in_flight);
 }
 
 void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu)
@@ -334,14 +554,14 @@ void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu)
  */
 float get_mean_array(float *a, int n_elements)
 {
-  // determine the mean for the vector:
-  float mean = 0;
-  for (unsigned int i = 0; i < n_elements; i++) {
-    mean += a[i];
-  }
-  mean /= n_elements;
+	// determine the mean for the vector:
+	float mean = 0;
+	for (unsigned int i = 0; i < n_elements; i++) {
+		mean += a[i];
+	}
+	mean /= n_elements;
 
-  return mean;
+	return mean;
 }
 
 /**
@@ -353,80 +573,20 @@ float get_mean_array(float *a, int n_elements)
  */
 float get_cov(float *a, float *b, int n_elements)
 {
-  // Determine means for each vector:
-  float mean_a = get_mean_array(a, n_elements);
-  float mean_b = get_mean_array(b, n_elements);
+	// Determine means for each vector:
+	float mean_a = get_mean_array(a, n_elements);
+	float mean_b = get_mean_array(b, n_elements);
 
-  // Determine the covariance:
-  float cov = 0;
-  for (unsigned int i = 0; i < n_elements; i++) {
-    cov += (a[i] - mean_a) * (b[i] - mean_b);
-  }
-
-  cov /= n_elements;
-
-  return cov;
-}
-
-// Run H
-void v_ctrl_module_run(bool in_flight)
-{
-	if (!in_flight)
-	{
-		// Reset integrators
-		stabilization_cmd[COMMAND_THRUST] = 0;
+	// Determine the covariance:
+	float cov = 0;
+	for (unsigned int i = 0; i < n_elements; i++) {
+		cov += (a[i] - mean_a) * (b[i] - mean_b);
 	}
-	else
-	{
-		stabilization_cmd[COMMAND_THRUST] = TitusLog.rc_t;
-	}
+
+	cov /= n_elements;
+
+	return cov;
 }
-
-////////////////////////////////////////////////////////////////////
-// Call our controllers
-// Implement own Horizontal loops
-void guidance_h_module_init(void)
-{
-	h_ctrl_module_init();
-}
-
-void guidance_h_module_enter(void)
-{
-	// run Enter module code here
-	stabilization_attitude_enter();
-
-	VECT2_COPY(titusmodule_ref_pos, *stateGetPositionNed_i());
-	//	stabilization_attitude_set_failsafe_setpoint();
-}
-
-void guidance_h_module_run(bool in_flight)
-{
-	// Call full inner-/outerloop / horizontal-/vertical controller:
-	h_ctrl_module_run(in_flight);
-
-	stabilization_attitude_run(in_flight);
-}
-
-
-
-// Implement own Vertical loops
-void guidance_v_module_init(void)
-{
-	// initialization of your custom vertical controller goes here
-	v_ctrl_module_init();
-}
-
-void guidance_v_module_enter(void)
-{
-	// your code that should be executed when entering this vertical mode goes here
-}
-
-void guidance_v_module_run(bool in_flight)
-{
-	// your vertical controller goes here
-	v_ctrl_module_run(in_flight);
-}
-
 
 void file_logger_start(void)
 {
@@ -576,6 +736,12 @@ static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_
 	TitusLog.of_flow_der_y = flow_der_y;
 	TitusLog.of_quality = quality;
 	TitusLog.of_size_divergence = size_divergence;
+	printf("size_divergence: %f \n",size_divergence);
+	printf("\n");
+	divergence_vision = size_divergence;
+	vision_message_nr++;
+	if (vision_message_nr > 10) { vision_message_nr = 0; }
+
 }
 static void titus_ctrl_velocity_cb(uint8_t sender_id, uint32_t stamp, float x, float y, float z, float noise)
 {

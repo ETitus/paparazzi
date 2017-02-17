@@ -54,6 +54,24 @@ extern void guidance_v_module_enter(void);
 extern void guidance_v_module_run(bool in_flight);
 
 
+struct OpticalFlowTitus {
+	float lp_factor;              ///< low-pass factor in [0,1], with 0 purely using the current measurement
+	float divergence_setpoint;    ///< setpoint for constant divergence approach
+	float nominal_thrust;         ///< nominal thrust around which the PID-control operates
+	float cov_set_point;          ///< for adaptive gain control, setpoint of the covariance (oscillations)
+	int delay_steps;              ///< number of delay steps for div past
+	float sum_err;                ///< integration of the error for I-gain
+
+//	float cov_limit;              ///< for fixed gain control, what is the cov limit triggering the landing
+//	float pgain_adaptive;         ///< P-gain for adaptive gain control
+//	float igain_adaptive;         ///< I-gain for adaptive gain control
+//	float dgain_adaptive;         ///< D-gain for adaptive gain control
+//	float pgain;                  ///< P-gain for constant divergence control (from divergence error to thrust)
+//	float igain;                  ///< I-gain for constant divergence control
+//	float dgain;                  ///< D-gain for constant divergence control
+
+};
+
 struct LogState {
 
 	// AGL

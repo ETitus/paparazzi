@@ -2264,6 +2264,21 @@
 			</field>
 			<field name="sonar" type="float"> measurement from the sonar (mm)</field>
 		</message>
+		
+		<message name="TITUSMODULE" id="248">
+			<field name="divergence" type="float"> vertical velocity / height from
+				optitrack (unit = 1/sec)</field>
+			<field name="divergence_vision" type="float"> vertical velocity /
+				height from vision (unit = 1/sec)</field>
+			<field name="cov_div" type="float"> covariance of divergence and
+				thrust, or past divergence depending on the mode (-)</field>
+			<field name="sonar" type="float"> measurement from the sonar (mm)</field>
+			<field name="err" type="float"> Error in divergence</field>
+			<field name="pused" type="float"> Gain used in the feedback</field>
+			<field name="sum_err" type="float"> Sum of errors</field>
+			<field name="thrust" type="uint32"> The thrust</field>
+		</message>
+		
 
 		<message name="VIDEO_SYNC" id="225">
 			<field name="id" type="uint8" />
