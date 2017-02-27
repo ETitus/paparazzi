@@ -374,12 +374,11 @@ void v_ctrl_module_run(bool in_flight)
 
 
 		// Time oplopende gain hier
-
 		pused += dt2*GAINRAMP;
 		dt2 = 0;
 
 		// nominal throttle times angles?
-		thrust = nominal_throttle + pused * err * MAX_PPRZ; //+ of_titusmodule.igain * of_titusmodule.sum_err * MAX_PPRZ;
+		thrust = nominal_throttle + pused2 * err * MAX_PPRZ; //+ of_titusmodule.igain * of_titusmodule.sum_err * MAX_PPRZ;
 
 		normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
 		        thrust_history[ind_hist % COV_WINDOW_SIZE] = normalized_thrust;
@@ -445,6 +444,7 @@ void guidance_v_module_enter(void)
 
 	ind_hist = 0;
 	pused = 1;
+	pused2 = 1;
 	cov_div = of_titusmodule.cov_set_point;
 	divergence = of_titusmodule.divergence_setpoint;
 	dt = 0.0f;

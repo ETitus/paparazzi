@@ -53,6 +53,8 @@ extern void guidance_v_module_init(void);
 extern void guidance_v_module_enter(void);
 extern void guidance_v_module_run(bool in_flight);
 
+// Settings Variables
+float pused2;
 
 struct OpticalFlowTitus {
 	float lp_factor;              ///< low-pass factor in [0,1], with 0 purely using the current measurement
