@@ -32,7 +32,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "main_chibios.h"
+#include "mcu.h"
 #include "mcu_periph/sdio.h"
+#include "led.h"
 
 static uint8_t  nibbleToHex(uint8_t nibble);
 static void populateSerialNumberDescriptorData(void);
@@ -44,8 +46,6 @@ static bool isRunning = false;
 
 /* endpoint index */
 #define USB_MS_DATA_EP 1
-// cortex_m4 specific
-#define MCU_RESTART() {*((unsigned long *)0x0E000ED0C) = 0x05FA0004;}
 
 /* USB device descriptor */
 static const uint8_t deviceDescriptorData[] = {
@@ -221,9 +221,14 @@ const USBConfig usbConfig = {
 };
 
 /* Turns on a LED when there is I/O activity on the USB port */
-static void usbActivity(bool active)
+static void usbActivity(bool active __attribute__((unused)))
 {
-  palWritePad(GPIOC, GPIOC_LED4, active);
+#ifdef SDLOG_USB_LED
+  if (active)
+    LED_ON(SDLOG_USB_LED);
+  else
+    LED_OFF(SDLOG_USB_LED);
+#endif
 }
 
 /* USB mass storage configuration */
@@ -279,8 +284,9 @@ static void thdUsbStorage(void *arg)
   // used via libopencm3, ISR are routed on pprz/opencm3 and cannot
   // be used concurrently by chibios api
   // Should be fixed when using chibios-rt branch
+  // FIXME: Is the comment still relevant?
   while (!chThdShouldTerminateX() && antiBounce) {
-    const bool usbConnected = palReadPad(GPIOA, GPIOA_OTG_FS_VBUS);
+    const bool usbConnected = palReadPad(SDLOG_USB_VBUS_PORT, SDLOG_USB_VBUS_PIN);
     if (usbConnected) {
       antiBounce--;
     } else {
@@ -321,7 +327,7 @@ static void thdUsbStorage(void *arg)
   pprz_terminate_autopilot_threads();
 
   /* wait until usb-storage is unmount and usb cable is unplugged*/
-  while (!chThdShouldTerminateX() && palReadPad(GPIOA, GPIOA_OTG_FS_VBUS)) {
+  while (!chThdShouldTerminateX() && palReadPad(SDLOG_USB_VBUS_PORT, SDLOG_USB_VBUS_PIN)) {
     chThdSleepMilliseconds(10);
   }
 
@@ -332,7 +338,7 @@ static void thdUsbStorage(void *arg)
   msdStop(&UMSD1);
   sdio_disconnect();
 
-  MCU_RESTART();
+  mcu_reset();
   return;
 }
 

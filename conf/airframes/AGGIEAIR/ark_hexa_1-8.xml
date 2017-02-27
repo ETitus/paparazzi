@@ -88,7 +88,7 @@ ARK RT
   </section>
 
   <command_laws>
-    <call fun="motor_mixing_run(autopilot_motors_on,FALSE,values)"/>
+    <call fun="motor_mixing_run(autopilot_get_motors_on(),FALSE,values)"/>
     <set servo="FRONT"  value="motor_mixing.commands[SERVO_FRONT]"/>
     <set servo="FRONT_RIGHT" value="motor_mixing.commands[SERVO_FRONT_RIGHT]"/>
     <set servo="BACK_RIGHT"   value="motor_mixing.commands[SERVO_BACK_RIGHT]"/>
@@ -119,7 +119,7 @@ ARK RT
     <define name="MAG_Z_SENS" value="4.40442339014" integer="16"/>
   </section>
 
-    <section name="AHRS" prefix="AHRS_">
+  <section name="AHRS" prefix="AHRS_">
     <define name="H_X" value="0.3770441"/>
     <define name="H_Y" value="0.0193986"/>
     <define name="H_Z" value="0.9259921"/>

@@ -202,6 +202,7 @@ else ifeq ($(BOARD), apogee)
   BARO_BOARD_CFLAGS += -DUSE_I2C1
   BARO_BOARD_SRCS += peripherals/mpl3115.c
   BARO_BOARD_SRCS += $(SRC_BOARD)/baro_board.c
+  BARO_PERIODIC_FREQUENCY ?= 50
 
 # Umarim
 else ifeq ($(BOARD), umarim)
@@ -242,6 +243,15 @@ else ifeq ($(BOARD), openpilot_revo)
     BARO_BOARD_CFLAGS += -DBB_MS5611_I2C_DEV=i2c1
   endif
   BARO_BOARD_CFLAGS += -DBARO_BOARD=BARO_MS5611_I2C
+  BARO_BOARD_SRCS += peripherals/ms5611.c
+  BARO_BOARD_SRCS += peripherals/ms5611_i2c.c
+  BARO_BOARD_SRCS += boards/baro_board_ms5611_i2c.c
+
+else ifeq ($(BOARD), chimera)
+  BARO_BOARD_CFLAGS += -DBARO_BOARD=BARO_MS5611_I2C
+  BARO_BOARD_CFLAGS += -DUSE_I2C1
+  BARO_BOARD_CFLAGS += -DBB_MS5611_I2C_DEV=i2c1
+  BARO_BOARD_CFLAGS += -DBB_MS5611_SLAVE_ADDR=MS5611_I2C_SLAVE_ADDR_ALT
   BARO_BOARD_SRCS += peripherals/ms5611.c
   BARO_BOARD_SRCS += peripherals/ms5611_i2c.c
   BARO_BOARD_SRCS += boards/baro_board_ms5611_i2c.c
