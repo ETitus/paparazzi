@@ -1543,7 +1543,7 @@
 			<field name="ecef_x" type="int32" unit="cm" alt_unit="m" />
 			<field name="ecef_y" type="int32" unit="cm" alt_unit="m" />
 			<field name="ecef_z" type="int32" unit="cm" alt_unit="m" />
-			
+
 			<field name="ned_x" type="float" unit="m" alt_unit="m" />
 			<field name="ned_y" type="float" unit="m" alt_unit="m" />
 
@@ -2264,7 +2264,7 @@
 			</field>
 			<field name="sonar" type="float"> measurement from the sonar (mm)</field>
 		</message>
-		
+
 		<message name="TITUSMODULE" id="248">
 			<field name="divergence" type="float"> vertical velocity / height from
 				optitrack (unit = 1/sec)</field>
@@ -2278,7 +2278,16 @@
 			<field name="sum_err" type="float"> Sum of errors</field>
 			<field name="thrust" type="uint32"> The thrust</field>
 		</message>
-		
+
+		<message name="SNAPSHOT" id="249">
+			<field name="flow_x_snap" type="int16"> Snapshot Flow in X</field>
+			<field name="flow_y_snap" type="int16"> Snapshot Flow in Y</field>
+			<field name="divergence_snap" type="float"> Snapshot Divergence </field>
+			<field name="distance_x_snap" type="float"> Distance from snapshot in x
+				(m)</field>
+			<field name="distance_y_snap" type="float"> Distance from snapshot in y
+				(m)</field>
+		</message>
 
 		<message name="VIDEO_SYNC" id="225">
 			<field name="id" type="uint8" />

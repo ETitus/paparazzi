@@ -81,9 +81,9 @@ static pthread_mutex_t opticflow_mutex;            ///< Mutex lock fo thread saf
 struct image_t *opticflow_module_calc(struct image_t *img);     ///< The main optical flow calculation thread
 static void opticflow_agl_cb(uint8_t sender_id, float distance);    ///< Callback function of the ground altitude
 static void opticflow_imu_accel_cb(uint8_t sender_id, uint32_t stamp,
-                                   struct Int32Vect3 *accel); ///< Callback function of the IMU's accelerometers
+		struct Int32Vect3 *accel); ///< Callback function of the IMU's accelerometers
 static void opticflow_body_to_imu_cb(uint8_t sender_id,
-                                     struct FloatQuat *q_b2i_f); ///< Callback function of imu to body
+		struct FloatQuat *q_b2i_f); ///< Callback function of imu to body
 
 #if PERIODIC_TELEMETRY
 #include "subsystems/datalink/telemetry.h"
@@ -94,47 +94,55 @@ static void opticflow_body_to_imu_cb(uint8_t sender_id,
  */
 static void opticflow_telem_send(struct transport_tx *trans, struct link_device *dev)
 {
-  pthread_mutex_lock(&opticflow_mutex);
-  if (opticflow_result.noise_measurement < 0.8) {
-    pprz_msg_send_OPTIC_FLOW_EST(trans, dev, AC_ID,
-                                 &opticflow_result.fps, &opticflow_result.corner_cnt,
-                                 &opticflow_result.tracked_cnt, &opticflow_result.flow_x,
-                                 &opticflow_result.flow_y, &opticflow_result.flow_der_x,
-                                 &opticflow_result.flow_der_y, &opticflow_result.vel_x,
-                                 &opticflow_result.vel_y, &opticflow_result.div_size,
-                                 &opticflow_result.surface_roughness, &opticflow_result.divergence,&opticflow_state.agl); // TODO: no noise measurement here...
-  }
-  pthread_mutex_unlock(&opticflow_mutex);
+	pthread_mutex_lock(&opticflow_mutex);
+	if (opticflow_result.noise_measurement < 0.8) {
+		pprz_msg_send_OPTIC_FLOW_EST(trans, dev, AC_ID,
+				&opticflow_result.fps, &opticflow_result.corner_cnt,
+				&opticflow_result.tracked_cnt, &opticflow_result.flow_x,
+				&opticflow_result.flow_y, &opticflow_result.flow_der_x,
+				&opticflow_result.flow_der_y, &opticflow_result.vel_x,
+				&opticflow_result.vel_y, &opticflow_result.div_size,
+				&opticflow_result.surface_roughness, &opticflow_result.divergence,&opticflow_state.agl); // TODO: no noise measurement here...
+	}
+	pthread_mutex_unlock(&opticflow_mutex);
 }
 #endif
+
+static void send_snapshot(struct transport_tx *trans, struct link_device *dev)
+{
+	pthread_mutex_lock(&opticflow_mutex);
+	pprz_msg_send_SNAPSHOT(trans, dev, AC_ID, &opticflow_result.flow_x_snap,&opticflow_result.flow_y_snap,&opticflow_result.divergence_snap,&opticflow_result.distance_x_snap,&opticflow_result.distance_y_snap);
+	pthread_mutex_unlock(&opticflow_mutex);
+}
 
 /**
  * Initialize the optical flow module for the bottom camera
  */
 void opticflow_module_init(void)
 {
-  // Subscribe ABI messages
-  AbiBindMsgAGL(OPTICFLOW_AGL_ID, &opticflow_agl_ev, opticflow_agl_cb); // ABI to the altitude above ground level
-  AbiBindMsgIMU_ACCEL_INT32(OPTICFLOW_IMU_ID, &opticflow_imu_accel_ev,
-                            &opticflow_imu_accel_cb); // ABI to the IMU accelerometer measurements
-  AbiBindMsgBODY_TO_IMU_QUAT(OPTICFLOW_BODY_TO_IMU_ID, &opticflow_body_to_imu_ev,
-                             &opticflow_body_to_imu_cb); // ABI to the quaternion of body to imu
+	// Subscribe ABI messages
+	AbiBindMsgAGL(OPTICFLOW_AGL_ID, &opticflow_agl_ev, opticflow_agl_cb); // ABI to the altitude above ground level
+	AbiBindMsgIMU_ACCEL_INT32(OPTICFLOW_IMU_ID, &opticflow_imu_accel_ev,
+			&opticflow_imu_accel_cb); // ABI to the IMU accelerometer measurements
+	AbiBindMsgBODY_TO_IMU_QUAT(OPTICFLOW_BODY_TO_IMU_ID, &opticflow_body_to_imu_ev,
+			&opticflow_body_to_imu_cb); // ABI to the quaternion of body to imu
 
-  // Set the opticflow state to 0
-  FLOAT_RATES_ZERO(opticflow_state.rates);
-  float_quat_identity(&opticflow_state.imu_to_body_quat);
-  INT_VECT3_ZERO(opticflow_state.accel_imu_meas);
-  opticflow_state.agl = 0;
+	// Set the opticflow state to 0
+	FLOAT_RATES_ZERO(opticflow_state.rates);
+	float_quat_identity(&opticflow_state.imu_to_body_quat);
+	INT_VECT3_ZERO(opticflow_state.accel_imu_meas);
+	opticflow_state.agl = 0;
 
-  // Initialize the opticflow calculation
-  opticflow_got_result = false;
+	// Initialize the opticflow calculation
+	opticflow_got_result = false;
 
-  cv_add_to_device(&OPTICFLOW_CAMERA, opticflow_module_calc);
+	cv_add_to_device(&OPTICFLOW_CAMERA, opticflow_module_calc);
 
 #if PERIODIC_TELEMETRY
-  register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_OPTIC_FLOW_EST, opticflow_telem_send);
+	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_OPTIC_FLOW_EST, opticflow_telem_send);
 #endif
 
+	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SNAPSHOT, send_snapshot);
 }
 
 /**
@@ -143,31 +151,31 @@ void opticflow_module_init(void)
  */
 void opticflow_module_run(void)
 {
-  pthread_mutex_lock(&opticflow_mutex);
-  // Update the stabilization loops on the current calculation
-  if (opticflow_got_result) {
-    uint32_t now_ts = get_sys_time_usec();
-    AbiSendMsgOPTICAL_FLOW(OPTICFLOW_SEND_ABI_ID, now_ts,
-                           opticflow_result.flow_x,
-                           opticflow_result.flow_y,
-                           opticflow_result.flow_der_x,
-                           opticflow_result.flow_der_y,
-                           opticflow_result.noise_measurement,
-//                           opticflow_result.div_size, // Used to be the quantity to pass on, changed to divergence itself as EF doesnt compute div_size
-						   opticflow_result.divergence,
-                           opticflow_state.agl);
-    //TODO Find an appropiate quality measure for the noise model in the state filter, for now it is tracked_cnt
-    if (opticflow_result.noise_measurement < 0.8) {
-      AbiSendMsgVELOCITY_ESTIMATE(OPTICFLOW_SEND_ABI_ID, now_ts,
-                                  opticflow_result.vel_body_x,
-                                  opticflow_result.vel_body_y,
-                                  0.0f,
-                                  opticflow_result.noise_measurement
-                                 );
-    }
-    opticflow_got_result = false;
-  }
-  pthread_mutex_unlock(&opticflow_mutex);
+	pthread_mutex_lock(&opticflow_mutex);
+	// Update the stabilization loops on the current calculation
+	if (opticflow_got_result) {
+		uint32_t now_ts = get_sys_time_usec();
+		AbiSendMsgOPTICAL_FLOW(OPTICFLOW_SEND_ABI_ID, now_ts,
+				opticflow_result.flow_x,
+				opticflow_result.flow_y,
+				opticflow_result.flow_der_x,
+				opticflow_result.flow_der_y,
+				opticflow_result.noise_measurement,
+				//                           opticflow_result.div_size, // Used to be the quantity to pass on, changed to divergence itself as EF doesnt compute div_size
+				opticflow_result.divergence,
+				opticflow_state.agl);
+		//TODO Find an appropiate quality measure for the noise model in the state filter, for now it is tracked_cnt
+		if (opticflow_result.noise_measurement < 0.8) {
+			AbiSendMsgVELOCITY_ESTIMATE(OPTICFLOW_SEND_ABI_ID, now_ts,
+					opticflow_result.vel_body_x,
+					opticflow_result.vel_body_y,
+					0.0f,
+					opticflow_result.noise_measurement
+			);
+		}
+		opticflow_got_result = false;
+	}
+	pthread_mutex_unlock(&opticflow_mutex);
 }
 
 /**
@@ -179,26 +187,26 @@ void opticflow_module_run(void)
  */
 struct image_t *opticflow_module_calc(struct image_t *img)
 {
-  // Copy the state
-  // TODO : put accelerometer values at pose of img timestamp
-  struct opticflow_state_t temp_state;
-  struct pose_t pose = get_rotation_at_timestamp(img->pprz_ts);
-  temp_state = opticflow_state;
-  temp_state.rates = pose.rates;
+	// Copy the state
+	// TODO : put accelerometer values at pose of img timestamp
+	struct opticflow_state_t temp_state;
+	struct pose_t pose = get_rotation_at_timestamp(img->pprz_ts);
+	temp_state = opticflow_state;
+	temp_state.rates = pose.rates;
 
-  // Do the optical flow calculation
-  struct opticflow_result_t temp_result = {}; // new initialization
-  opticflow_calc_frame(&opticflow, &temp_state, img, &temp_result);
+	// Do the optical flow calculation
+	struct opticflow_result_t temp_result = {}; // new initialization
+	opticflow_calc_frame(&opticflow, &temp_state, img, &temp_result);
 
-  // Copy the result if finished
-  pthread_mutex_lock(&opticflow_mutex);
-  opticflow_result = temp_result;
-  opticflow_got_result = true;
+	// Copy the result if finished
+	pthread_mutex_lock(&opticflow_mutex);
+	opticflow_result = temp_result;
+	opticflow_got_result = true;
 
 
-  // release the mutex as we are done with editing the opticflow result
-  pthread_mutex_unlock(&opticflow_mutex);
-  return img;
+	// release the mutex as we are done with editing the opticflow result
+	pthread_mutex_unlock(&opticflow_mutex);
+	return img;
 }
 
 /**
@@ -208,10 +216,10 @@ struct image_t *opticflow_module_calc(struct image_t *img)
  */
 static void opticflow_agl_cb(uint8_t sender_id __attribute__((unused)), float distance)
 {
-  // Update the distance if we got a valid measurement
-  if (distance > 0) {
-    opticflow_state.agl = distance;
-  }
+	// Update the distance if we got a valid measurement
+	if (distance > 0) {
+		opticflow_state.agl = distance;
+	}
 }
 
 /**
@@ -222,7 +230,7 @@ static void opticflow_agl_cb(uint8_t sender_id __attribute__((unused)), float di
  */
 static void opticflow_imu_accel_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, struct Int32Vect3 *accel)
 {
-  opticflow_state.accel_imu_meas = *accel;
+	opticflow_state.accel_imu_meas = *accel;
 }
 
 /**
@@ -231,9 +239,9 @@ static void opticflow_imu_accel_cb(uint8_t sender_id __attribute__((unused)), ui
  * @param[in] q_b2i_f  The body-to-imu quaternion
  */
 static void opticflow_body_to_imu_cb(uint8_t sender_id __attribute__((unused)),
-                                     struct FloatQuat *q_b2i_f)
+		struct FloatQuat *q_b2i_f)
 {
-  struct FloatQuat imu_to_body_quat_temp;
-  float_quat_invert(&imu_to_body_quat_temp, q_b2i_f); // invert quaternion for body-to-imu to imu-to-body
-  opticflow_state.imu_to_body_quat = imu_to_body_quat_temp;
+	struct FloatQuat imu_to_body_quat_temp;
+	float_quat_invert(&imu_to_body_quat_temp, q_b2i_f); // invert quaternion for body-to-imu to imu-to-body
+	opticflow_state.imu_to_body_quat = imu_to_body_quat_temp;
 }

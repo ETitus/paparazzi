@@ -56,6 +56,16 @@ struct opticflow_result_t {
   float divergence;       ///< Divergence as determined with a linear flow fit
 
   float noise_measurement;  ///< noise of measurement, for state filter
+
+  /////////// Snapshot
+
+  int16_t flow_x_snap;         ///< Flow in x direction from the camera (in subpixels)
+  int16_t flow_y_snap;         ///< Flow in y direction from the camera (in subpixels)
+  float divergence_snap;       ///< Divergence as determined with a linear flow fit
+
+  float distance_x_snap;	   ///< Distance covered from snapshot in x direction in meters
+  float distance_y_snap;	   ///< Distance covered from snapshot in y direction in meters
+
 };
 
 /* The state of the drone when it took an image */

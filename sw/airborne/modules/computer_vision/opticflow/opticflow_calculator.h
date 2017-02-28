@@ -69,6 +69,7 @@ struct opticflow_t {
 
   uint16_t fast9_rsize;             ///< Amount of corners allocated
   struct point_t *fast9_ret_corners;    ///< Corners
+  bool snapshot; 					///< used to make a snapshot
 };
 
 
@@ -80,7 +81,8 @@ void calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct opticflow_sta
                              struct opticflow_result_t *result);
 void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
                        struct opticflow_result_t *result);
-
+void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
+                       struct opticflow_result_t *result);
 void kalman_filter_opticflow_velocity(float *velocity_x, float *velocity_y, float *acceleration_measurement, float fps,
                                       float *measurement_noise, float process_noise, bool reinitialize_kalman);
 

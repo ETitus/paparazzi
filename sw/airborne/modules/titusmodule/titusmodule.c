@@ -187,10 +187,10 @@ struct OpticalFlowTitus of_titusmodule;
 struct LogState TitusLog;
 
 // sending the divergence message to the ground station:
-static void send_titusmodule(struct transport_tx *trans, struct link_device *dev)
-{
-	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence, &divergence_vision,&cov_div,&TitusLog.distance,&err,&pused,&of_titusmodule.sum_err,&thrust);
-}
+//static void send_titusmodule(struct transport_tx *trans, struct link_device *dev)
+//{
+//	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence, &divergence_vision,&cov_div,&TitusLog.distance,&err,&pused,&of_titusmodule.sum_err,&thrust);
+//}
 
 
 
@@ -206,7 +206,7 @@ void titusmodule_init(void)
 	AbiBindMsgOPTICAL_FLOW(TITUSMODULE_OPTICAL_FLOW_ID, &optical_flow_ev, titus_ctrl_optical_flow_cb);
 	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
 
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_TITUSMODULE, send_titusmodule);
+//	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_TITUSMODULE, send_titusmodule);
 }
 
 
