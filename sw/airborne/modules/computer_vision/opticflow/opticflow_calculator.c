@@ -665,21 +665,14 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	if (opticflow->snapshot == 1)
 	{
 		opticflow->snapshot = 0;
-		snapshot = edge_hist[current_frame_nr];
-		printf("snapshot taken frame number : %d \n",current_frame_nr);
-		for(int ii=0;ii< img->w;ii++)
-		{
-			for(int jj=0; jj<img->h;jj++)
-			{
-				printf("%d,%d: %d,%d \n",ii,jj,snapshot.x[ii],snapshot.y[jj]);
-			}
-		}
 
+		snapshot.frame_time = edge_hist[current_frame_nr].frame_time;
+		snapshot.rates = edge_hist[current_frame_nr].rates;
+		*snapshot.x = *edge_hist[current_frame_nr].x;
+		*snapshot.y = *edge_hist[current_frame_nr].y;
+
+		printf("snapshot taken, time is: %f  \n",((float) snapshot.frame_time.tv_sec+snapshot.frame_time.tv_usec/1000.0));
 	}
-
-	//Select edge histogram from the snapshot
-	int32_t *snapshot_edge_histogram_x = snapshot.x;
-	int32_t *snapshot_edge_histogram_y = snapshot.y;
 
 	//Calculate the corresponding derotation of the two frames
 	int16_t der_shift_x = 0;
@@ -697,6 +690,9 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 
 	///////////////////////// SNAPSHOT
 
+	//Select edge histogram from the snapshot
+	int32_t *snapshot_edge_histogram_x = snapshot.x;
+	int32_t *snapshot_edge_histogram_y = snapshot.y;
 
 	// Estimate pixel wise displacement of the edge histograms for x and y direction WRT snapshot
 	calculate_edge_displacement(edge_hist_x, snapshot_edge_histogram_x,
@@ -724,8 +720,8 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	edgeflow_snap.flow_x = -1 * edgeflow_snap.flow_x;
 	edgeflow_snap.flow_y = -1 * edgeflow_snap.flow_y;
 
-	result->flow_x_snap = (int16_t)edgeflow_snap.flow_x / previous_frame_offset[0];
-	result->flow_y_snap = (int16_t)edgeflow_snap.flow_y / previous_frame_offset[1];
+	result->flow_x_snap = (int16_t)edgeflow_snap.flow_x; // /previous_frame_offset[0];
+	result->flow_y_snap = (int16_t)edgeflow_snap.flow_y; // /previous_frame_offset[1];
 
 	result->divergence_snap = (float)edgeflow_snap.flow_x / RES;
 
