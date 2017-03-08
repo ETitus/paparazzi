@@ -65,7 +65,6 @@ struct opticflow_result_t {
 
   float distance_x_snap;	   ///< Distance covered from snapshot in x direction in meters
   float distance_y_snap;	   ///< Distance covered from snapshot in y direction in meters
-
 };
 
 /* The state of the drone when it took an image */

@@ -50,7 +50,7 @@
 
 
 // whether to show the flow and corners:
-#define OPTICFLOW_SHOW_FLOW 1
+#define OPTICFLOW_SHOW_FLOW 0
 #define OPTICFLOW_SHOW_CORNERS 0
 
 // What methods are run to determine divergence, lateral flow, etc.
@@ -199,7 +199,6 @@ static int cmp_flow(const void *a, const void *b);
  */
 void opticflow_calc_init(struct opticflow_t *opticflow, uint16_t w, uint16_t h)
 {
-
 	init_median_filter(&vel_x_filt);
 	init_median_filter(&vel_y_filt);
 
@@ -246,9 +245,10 @@ void opticflow_calc_init(struct opticflow_t *opticflow, uint16_t w, uint16_t h)
 void calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
 		struct opticflow_result_t *result)
 {
-	if (opticflow->just_switched_method) {
-		opticflow_calc_init(opticflow, img->w, img->h);
-	}
+	// This shouldnt run inside of LK...
+	//	if (opticflow->just_switched_method) {
+	//		opticflow_calc_init(opticflow, img->w, img->h);
+	//	}
 
 	// variables for size_divergence:
 	float size_divergence; int n_samples;
@@ -584,6 +584,10 @@ void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *
 #endif
 	// Increment and wrap current time frame
 	current_frame_nr = (current_frame_nr + 1) % MAX_HORIZON;
+
+	// Does this stop the memory leak?
+	free(displacement.x);
+	free(displacement.y);
 }
 
 /**
@@ -596,6 +600,7 @@ void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *
 void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
 		struct opticflow_result_t *result)
 {
+
 	//define the snapshot edge histogram
 	static struct edge_hist_t snapshot;
 	// Define Normal variables for snapshot
@@ -668,10 +673,21 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 
 		snapshot.frame_time = edge_hist[current_frame_nr].frame_time;
 		snapshot.rates = edge_hist[current_frame_nr].rates;
-		*snapshot.x = *edge_hist[current_frame_nr].x;
-		*snapshot.y = *edge_hist[current_frame_nr].y;
 
-		printf("snapshot taken, time is: %f  \n",((float) snapshot.frame_time.tv_sec+snapshot.frame_time.tv_usec/1000.0));
+		// loop over image width to copy snapshot
+		for(int x=0; x<img->w;x++)
+		{
+			if(x<img->h)
+			{
+				*(snapshot.x+x) = *(edge_hist[current_frame_nr].x+x);
+				*(snapshot.y+x) = *(edge_hist[current_frame_nr].y+x);
+			}
+			else
+			{
+				*(snapshot.x+x) = *(edge_hist[current_frame_nr].x+x);
+			}
+		}
+		printf("snap \n");
 	}
 
 	//Calculate the corresponding derotation of the two frames
@@ -687,12 +703,24 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 				(float)img->h / (OPTICFLOW_FOV_H) * opticflow->derotation_correction_factor_y);
 	}
 
-
 	///////////////////////// SNAPSHOT
 
 	//Select edge histogram from the snapshot
 	int32_t *snapshot_edge_histogram_x = snapshot.x;
 	int32_t *snapshot_edge_histogram_y = snapshot.y;
+
+
+	//		for(int x=0; x<img->w;x++)
+	//		{
+	//			if(x<img->h)
+	//			{
+	//				printf("%d: %d,%d,%d,%d\n",x,*(snapshot_edge_histogram_x+x),*(edge_hist_x+x),*(snapshot_edge_histogram_y+x),*(edge_hist_y+x));
+	//			}
+	//			else
+	//			{
+	//				printf("%d,%d\n",*(snapshot_edge_histogram_x+x),*(edge_hist_x+x));
+	//			}
+	//		}
 
 	// Estimate pixel wise displacement of the edge histograms for x and y direction WRT snapshot
 	calculate_edge_displacement(edge_hist_x, snapshot_edge_histogram_x,
@@ -731,6 +759,8 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 
 	result->distance_x_snap = dis_x;
 	result->distance_y_snap = dis_y;
+
+	//	draw_edgeflow_img(img, edgeflow_snap, snapshot_edge_histogram_x, edge_hist_x);
 
 	/////////////////////// Frame to Frame
 
@@ -776,7 +806,7 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	result->flow_der_y =  result->flow_y;
 	result->corner_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
 	result->tracked_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
-	result->divergence = (float)edgeflow.flow_x / RES;
+	result->divergence = (float)edgeflow.div_x / RES;                      ///////////////////// flow_x should be div_x ?
 	result->div_size = 0.0f;
 	result->noise_measurement = 0.0f;
 	result->surface_roughness = 0.0f;
@@ -819,6 +849,12 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 #endif
 	// Increment and wrap current time frame
 	current_frame_nr = (current_frame_nr + 1) % MAX_HORIZON;
+
+	// Does this stop the memory leak?
+	free(displacement.x);
+	free(displacement.y);
+	free(displacement_snap.x);
+	free(displacement_snap.y);
 }
 
 
@@ -832,13 +868,17 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
 		struct opticflow_result_t *result)
 {
-
 	// A switch counter that checks in the loop if the current method is similar,
 	// to the previous (for reinitializing structs)
 	static int8_t switch_counter = -1;
 	if (switch_counter != opticflow->method) {
 		opticflow->just_switched_method = true;
 		switch_counter = opticflow->method;
+
+
+		// TODO: For now this is here, but it is still run on each switch, rather than only ONCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		opticflow_calc_init(opticflow, img->w, img->h);
+
 	} else {
 		opticflow->just_switched_method = false;
 	}
@@ -847,7 +887,7 @@ void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_
 	if (opticflow->method == 0) {
 		calc_fast9_lukas_kanade(opticflow, state, img, result);
 	} else if (opticflow->method == 1) {
-		//		calc_edgeflow_tot(opticflow, state, img, result);
+		//				calc_edgeflow_tot(opticflow, state, img, result);
 		calc_edgeflow_titus(opticflow, state, img, result);
 	}
 
