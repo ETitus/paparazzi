@@ -137,7 +137,7 @@ void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
 					edge_histogram[x] += sobel_sum;
 				}
 			}
-			//			printf("edgehist[%d]: %d  @ address of edged x's: %p \n",x,edge_histogram[x], &edge_histogram[x]);
+			//						printf("edgehist[%d]: %d \n",x,edge_histogram[x]);
 		}
 	} else if (direction == 'y') {
 		// set values that are not visited
@@ -217,15 +217,14 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 				displacement[x] = (int32_t)getMinimum(SAD_temp, 2 * D + 1) - D;
 				if(size==320)
 				{
-					//					printf("displacemen[%d]: %d \n",x,displacement[x]);
+					printf("displacemen[%d]: %d \n",x,displacement[x]);
 				}
-
 			} else {
 			}
 		}
 		if(size==320)
 		{
-			//			printf("\n");
+			printf("\n");
 		}
 	}
 
@@ -287,7 +286,8 @@ void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_
 	// compute fixed sums
 	int32_t xend = size_int - border_int - 1;
 	sumX = xend * (xend + 1) / 2 - border_int * (border_int + 1) / 2 + border_int;
-	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6;
+//	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6;  //////////// why not minus border stuff? For example like below
+	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6 - border_int * (border_int + 1) * (2 * border_int+ 1) / 6 + border_int^2;
 	xMean = (size_int - 1) / 2;
 	count = size_int - 2 * border_int;
 
@@ -299,11 +299,18 @@ void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_
 	yMean = RES * sumY / count;
 
 	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
+
 	*divergence = divergence_int;
 	*flow = yMean - *divergence * xMean;  // compute b (or y) intercept of line ax + b
 
 	for (x = border_int; x < size - border_int; x++) {
 		total_error += abs(RES * displacement[x] - divergence_int * x + yMean);
+	}
+	if(size==320)
+	{
+		printf(" divergence_int: %d \n",divergence_int);
+		printf(" flow: %d \n",(yMean-divergence_int*xMean));
+		printf(" total_error: %d \n \n",total_error);
 	}
 }
 

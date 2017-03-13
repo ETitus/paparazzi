@@ -221,141 +221,184 @@ void titusmodule_init(void)
 
 void titusmodule_start(void)
 {
-//	//	file_logger_start();
-//
-//
-//	struct image_t titus_img;
-//
-//	image_create(&titus_img,320,240,IMAGE_GRAYSCALE);
-//	uint8_t *img_buf = (uint8_t *)titus_img.buf;
-//
-//	int xoffset =0;
-//	int yoffset =0;
-//
-//	for(int y=0; y<titus_img.h;y++)
-//	{
-//		for(int x=0; x<titus_img.w;x++)
-//		{
-//			if((x>140+xoffset) && (x<180+xoffset) && (y>110+yoffset) && (y<130+yoffset))
-//			{
-//				img_buf[y*titus_img.w+x] = 0;
-//			}
-//			else
-//			{
-//				img_buf[y*titus_img.w+x] = 100;
-//			}
-//		}
-//	}
-//	//	printf("imgbuff making: %d containing %d \n",((titus_img.h-1)*titus_img.w+(titus_img.w-1)),img_buf[((titus_img.h-1)*titus_img.w+(titus_img.w-1))]);
-//
-//	gettimeofday(&titus_img.ts, NULL);
-//
-//
-//	struct opticflow_t titus_opticflow;
-//	struct opticflow_state_t titus_state;
-//	struct opticflow_result_t titus_result;
-//
-//
-//
-//
-//	/* Set the default values */
-//	titus_opticflow.window_size = 10;
-//	titus_opticflow.search_distance = 10;
-//	titus_opticflow.derotation = 1;
-//	titus_opticflow.just_switched_method = 1;
-//	titus_opticflow.snapshot = 1;
-//	titus_opticflow.subpixel_factor = 10;
-//	FLOAT_RATES_ZERO(titus_state.rates);
-//	titus_state.agl = 1;
-//
-//	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
-//	titus_opticflow.just_switched_method = 0;
-//	printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
-//
-//	struct image_t img_jpeg_global;
-//	image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
-//	jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
-//	FILE *fp = fopen("/data/video/titusimage.jpg", "w");
-//	if (fp == NULL) {
-//	} else {
-//		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
-//		fclose(fp);
-//	}
-//
-//
-//
-//
-//	struct image_t titus_img2;
-//	image_create(&titus_img2,320,240,IMAGE_GRAYSCALE);
-//	uint8_t *img_buf2 = (uint8_t *)titus_img2.buf;
-//
-//	xoffset =5;
-//	//	yoffset =5;
-//
-//	for(int y=0; y<titus_img2.h;y++)
-//	{
-//		for(int x=0; x<titus_img2.w;x++)
-//		{
-//			if((x>140+xoffset) && (x<180+xoffset) && (y>110+yoffset) && (y<130+yoffset))
-//			{
-//				img_buf2[y*titus_img2.w+x] = 0;
-//			}
-//			else
-//			{
-//				img_buf2[y*titus_img2.w+x] = 100;
-//			}
-//		}
-//	}
-//	gettimeofday(&titus_img2.ts, NULL);
-//
-//
-//
-//	//	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
-//	//	printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
-//
-//
-//	jpeg_encode_image(&titus_img2, &img_jpeg_global, 99, TRUE);
-//	FILE *fp2 = fopen("/data/video/titusimage_verschoven.jpg", "w");
-//	if (fp2 == NULL) {
-//	} else {
-//		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp2);
-//		fclose(fp2);
-//	}
-//
-//	//	uint32_t counter = 0;
-//	//	char filename[512];
-//	//
-//	//	// Check for available files
-//	//	sprintf(filename, "%s/%05d.csv", STRINGIFY(FILE_LOGGER_PATH), counter);
-//	//	while ((file_logger = fopen(filename, "r"))) {
-//	//		fclose(file_logger);
-//	//
-//	//		counter++;
-//	//		sprintf(filename, "%s/%05d.csv", STRINGIFY(FILE_LOGGER_PATH), counter);
-//	//	}
-//	//
-//	//	file_logger = fopen(filename, "w");
-//	//
-//	//
-//	//	for(int x=0; x<titus_img.w;x++)
-//	//	{
-//	//		if(x<titus_img.h)
-//	//		{
-//	//			fprintf(file_logger, "%d,%d,%d,%d\n",*(titus_result.x_snap+x),*(titus_result.x_current+x),*(titus_result.y_snap+x),*(titus_result.y_current+x));
-//	//		}
-//	//		else
-//	//		{
-//	//			fprintf(file_logger, "%d,%d\n",*(titus_result.x_snap+x),*(titus_result.x_current+x));
-//	//		}
-//	//	}
-//	//
-//	//	fclose(file_logger);
-//
-//	for(int aap=1;aap<300;aap++)
-//	{
-//		calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
-//		printf(" aap: %d \n flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",aap,titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
-//	}
+	//	file_logger_start();
+
+
+	struct image_t titus_img;
+	image_create(&titus_img,320,240,IMAGE_YUV422);
+
+	FILE *file;
+	unsigned long fileLen;
+	file = fopen("/data/video/halfpolice.yuv", "rb");
+	//Get file length
+	fseek(file, 0, SEEK_END);
+	fileLen=ftell(file);
+	fseek(file, 0, SEEK_SET);
+	//Read file contents into buffer
+	fread(titus_img.buf, fileLen, 1, file); // fileLen en 1 omdraaien?
+	fclose (file);
+
+	struct image_t titus_img2;
+	image_create(&titus_img2,320,240,IMAGE_YUV422);
+
+	FILE *file2;
+	unsigned long fileLen2;
+	file2 = fopen("/data/video/halfpolice2.yuv", "rb");
+	//Get file length
+	fseek(file2, 0, SEEK_END);
+	fileLen2=ftell(file2);
+	fseek(file2, 0, SEEK_SET);
+	//Read file contents into buffer
+	fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
+	fclose (file2);
+
+
+
+	//	struct image_t titus_img;
+	//
+	//	image_create(&titus_img,320,240,IMAGE_GRAYSCALE);
+	//	uint8_t *img_buf = (uint8_t *)titus_img.buf;
+	//
+	//	int xoffset =0;
+	//	int yoffset =0;
+	//
+	//	for(int y=0; y<titus_img.h;y++)
+	//	{
+	//		for(int x=0; x<titus_img.w;x++)
+	//		{
+	//			if((x>140+xoffset) && (x<180+xoffset) && (y>110+yoffset) && (y<130+yoffset))
+	//			{
+	//				img_buf[y*titus_img.w+x] = 0;
+	//			}
+	//			else
+	//			{
+	//				img_buf[y*titus_img.w+x] = 100;
+	//			}
+	//		}
+	//	}
+	//	//	printf("imgbuff making: %d containing %d \n",((titus_img.h-1)*titus_img.w+(titus_img.w-1)),img_buf[((titus_img.h-1)*titus_img.w+(titus_img.w-1))]);
+	//
+		gettimeofday(&titus_img.ts, NULL);
+	//
+	//
+		struct opticflow_t titus_opticflow;
+		struct opticflow_state_t titus_state;
+		struct opticflow_result_t titus_result;
+	//
+	//
+	//
+	//
+		/* Set the default values */
+		titus_opticflow.window_size = 10;
+		titus_opticflow.search_distance = 10;
+		titus_opticflow.derotation = 1;
+		titus_opticflow.just_switched_method = 1;
+		titus_opticflow.snapshot = 1;
+		titus_opticflow.subpixel_factor = 1;
+		FLOAT_RATES_ZERO(titus_state.rates);
+		titus_state.agl = 1;
+
+		calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
+		titus_opticflow.just_switched_method = 0;
+		printf(" snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+//		printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+
+		struct image_t img_jpeg_global;
+		image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
+		jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
+		FILE *fp = fopen("/data/video/titusimage.jpg", "wb");
+		if (fp == NULL) {
+		} else {
+			fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
+			fclose(fp);
+		}
+
+		//
+	//	struct image_t img_jpeg_global;
+	//	image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
+	//	jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
+	//	FILE *fp = fopen("/data/video/titusimage.jpg", "w");
+	//	if (fp == NULL) {
+	//	} else {
+	//		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
+	//		fclose(fp);
+	//	}
+	//
+	//
+	//
+	//
+	//	struct image_t titus_img2;
+	//	image_create(&titus_img2,320,240,IMAGE_GRAYSCALE);
+	//	uint8_t *img_buf2 = (uint8_t *)titus_img2.buf;
+	//
+	//	xoffset =5;
+	//	//	yoffset =5;
+	//
+	//	for(int y=0; y<titus_img2.h;y++)
+	//	{
+	//		for(int x=0; x<titus_img2.w;x++)
+	//		{
+	//			if((x>140+xoffset) && (x<180+xoffset) && (y>110+yoffset) && (y<130+yoffset))
+	//			{
+	//				img_buf2[y*titus_img2.w+x] = 0;
+	//			}
+	//			else
+	//			{
+	//				img_buf2[y*titus_img2.w+x] = 100;
+	//			}
+	//		}
+	//	}
+	//	gettimeofday(&titus_img2.ts, NULL);
+	//
+	//
+	//
+			calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
+//			printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+			printf(" snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+				//
+	//
+		jpeg_encode_image(&titus_img2, &img_jpeg_global, 99, TRUE);
+		FILE *fp2 = fopen("/data/video/titusimage_verschoven.jpg", "w");
+		if (fp2 == NULL) {
+		} else {
+			fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp2);
+			fclose(fp2);
+		}
+	//
+	//	//	uint32_t counter = 0;
+	//	//	char filename[512];
+	//	//
+	//	//	// Check for available files
+	//	//	sprintf(filename, "%s/%05d.csv", STRINGIFY(FILE_LOGGER_PATH), counter);
+	//	//	while ((file_logger = fopen(filename, "r"))) {
+	//	//		fclose(file_logger);
+	//	//
+	//	//		counter++;
+	//	//		sprintf(filename, "%s/%05d.csv", STRINGIFY(FILE_LOGGER_PATH), counter);
+	//	//	}
+	//	//
+	//	//	file_logger = fopen(filename, "w");
+	//	//
+	//	//
+	//	//	for(int x=0; x<titus_img.w;x++)
+	//	//	{
+	//	//		if(x<titus_img.h)
+	//	//		{
+	//	//			fprintf(file_logger, "%d,%d,%d,%d\n",*(titus_result.x_snap+x),*(titus_result.x_current+x),*(titus_result.y_snap+x),*(titus_result.y_current+x));
+	//	//		}
+	//	//		else
+	//	//		{
+	//	//			fprintf(file_logger, "%d,%d\n",*(titus_result.x_snap+x),*(titus_result.x_current+x));
+	//	//		}
+	//	//	}
+	//	//
+	//	//	fclose(file_logger);
+	//
+	//	for(int aap=1;aap<300;aap++)
+	//	{
+	//		calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
+	//		printf(" aap: %d \n flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",aap,titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+	//	}
 }
 
 void titusmodule_periodic(void)
@@ -608,6 +651,13 @@ void guidance_v_module_run(bool in_flight)
 	v_ctrl_module_run(in_flight);
 }
 
+
+/**
+ * Get the desired Euler angles for optitrack stabilization
+ * @param[in] Boolean whether to Phi or not
+ * @param[in] Boolean whether to Theta or not
+ * @param[out] The desired Euler angles
+ */
 void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu)
 {
 
