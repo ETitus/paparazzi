@@ -229,7 +229,7 @@ void titusmodule_start(void)
 
 	FILE *file;
 	unsigned long fileLen;
-	file = fopen("/data/video/halfpolice.yuv", "rb");
+	file = fopen("/data/video/2divpolice.yuv", "rb");
 	//Get file length
 	fseek(file, 0, SEEK_END);
 	fileLen=ftell(file);
@@ -243,7 +243,7 @@ void titusmodule_start(void)
 
 	FILE *file2;
 	unsigned long fileLen2;
-	file2 = fopen("/data/video/halfpolice2.yuv", "rb");
+	file2 = fopen("/data/video/2divpolice2.yuv", "rb");
 	//Get file length
 	fseek(file2, 0, SEEK_END);
 	fileLen2=ftell(file2);
@@ -251,8 +251,6 @@ void titusmodule_start(void)
 	//Read file contents into buffer
 	fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
 	fclose (file2);
-
-
 
 	//	struct image_t titus_img;
 	//
@@ -278,42 +276,42 @@ void titusmodule_start(void)
 	//	}
 	//	//	printf("imgbuff making: %d containing %d \n",((titus_img.h-1)*titus_img.w+(titus_img.w-1)),img_buf[((titus_img.h-1)*titus_img.w+(titus_img.w-1))]);
 	//
-		gettimeofday(&titus_img.ts, NULL);
+	gettimeofday(&titus_img.ts, NULL);
 	//
 	//
-		struct opticflow_t titus_opticflow;
-		struct opticflow_state_t titus_state;
-		struct opticflow_result_t titus_result;
+	struct opticflow_t titus_opticflow;
+	struct opticflow_state_t titus_state;
+	struct opticflow_result_t titus_result;
 	//
 	//
 	//
 	//
-		/* Set the default values */
-		titus_opticflow.window_size = 10;
-		titus_opticflow.search_distance = 10;
-		titus_opticflow.derotation = 1;
-		titus_opticflow.just_switched_method = 1;
-		titus_opticflow.snapshot = 1;
-		titus_opticflow.subpixel_factor = 1;
-		FLOAT_RATES_ZERO(titus_state.rates);
-		titus_state.agl = 1;
+	/* Set the default values */
+	titus_opticflow.window_size = 10;
+	titus_opticflow.search_distance = 40;
+	titus_opticflow.derotation = 1;
+	titus_opticflow.just_switched_method = 1;
+	titus_opticflow.snapshot = 1;
+	titus_opticflow.subpixel_factor = 1;
+	FLOAT_RATES_ZERO(titus_state.rates);
+	titus_state.agl = 1;
 
-		calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
-		titus_opticflow.just_switched_method = 0;
-		printf(" snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
-//		printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
+	titus_opticflow.just_switched_method = 0;
+	printf(" snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+	//		printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
 
-		struct image_t img_jpeg_global;
-		image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
-		jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
-		FILE *fp = fopen("/data/video/titusimage.jpg", "wb");
-		if (fp == NULL) {
-		} else {
-			fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
-			fclose(fp);
-		}
+	struct image_t img_jpeg_global;
+	image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
+	jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
+	FILE *fp = fopen("/data/video/titusimage.jpg", "wb");
+	if (fp == NULL) {
+	} else {
+		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
+		fclose(fp);
+	}
 
-		//
+	//
 	//	struct image_t img_jpeg_global;
 	//	image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
 	//	jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
@@ -352,18 +350,34 @@ void titusmodule_start(void)
 	//
 	//
 	//
-			calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
-//			printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
-			printf(" snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
-				//
-	//
+	for(int j=10;j<51;j=j+10)
+	{
+		file2 = fopen("/data/video/2divpolice2.yuv", "rb");
+			//Get file length
+			fseek(file2, 0, SEEK_END);
+			fileLen2=ftell(file2);
+			fseek(file2, 0, SEEK_SET);
+			//Read file contents into buffer
+			fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
+			fclose (file2);
+
+		titus_opticflow.search_distance = j;
+
+		calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
+		//			printf(" flowx: %d \n flowy: %d \n snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x,titus_result.flow_y,titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+		printf(" snapx: %d \n snapy: %d \n tracked: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap,titus_result.tracked_cnt);
+		//
+		//
 		jpeg_encode_image(&titus_img2, &img_jpeg_global, 99, TRUE);
-		FILE *fp2 = fopen("/data/video/titusimage_verschoven.jpg", "w");
+		char filename[51];
+		sprintf(filename, "/data/video/titusimage_verschoven%2d.jpg", j);
+		FILE *fp2 = fopen(filename, "w");
 		if (fp2 == NULL) {
 		} else {
 			fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp2);
 			fclose(fp2);
 		}
+	}
 	//
 	//	//	uint32_t counter = 0;
 	//	//	char filename[512];

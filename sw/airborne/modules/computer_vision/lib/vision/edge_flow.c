@@ -124,13 +124,13 @@ void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
 					idx = interlace * (image_width * y + (x + c)); // 2 for interlace
 
 					sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];    /////////////////////////// WHY +1?
-					//					if((x==318))//&&(y==(image_height-1)))
-					//					{
+					//										if((x==318))//&&(y==(image_height-1)))
+					//										{
 					//						printf("sobel operator : %d \n", Sobel[c + 1]);
-					//						printf("idx: %d , containing %d \n", idx,img_buf[idx]);
-					//						printf("idx+1: %d , containing %d  ???????????????????????\n", idx+1,img_buf[idx+1]);
+					//											printf("idx: %d , containing %d \n", idx,img_buf[idx]);
+					//											printf("idx+1: %d , containing %d  ???????????????????????\n", idx+1,img_buf[idx+1]);
 					//						printf("during sobel: %d \n", sobel_sum);
-					//					}
+					//										}
 				}
 				sobel_sum = abs(sobel_sum);
 				if (sobel_sum > edge_threshold) {
@@ -188,7 +188,6 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 	memset(displacement, 0, sizeof(int32_t)*size);
 
 	int32_t border[2];
-
 	if (der_shift < 0) {
 		border[0] =  W + D + der_shift;
 		border[1] = size - W - D;
@@ -199,11 +198,10 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 		border[0] =  W + D;
 		border[1] = size - W - D;
 	}
-
 	if (border[0] >= border[1] || abs(der_shift) >= 10) {
 		SHIFT_TOO_FAR = 1;
 	}
-	{
+	{													// what is meant here?
 		// TODO: replace with arm offset subtract
 		for (x = border[0]; x < border[1]; x++) {
 			displacement[x] = 0;
@@ -215,16 +213,8 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 					}
 				}
 				displacement[x] = (int32_t)getMinimum(SAD_temp, 2 * D + 1) - D;
-				if(size==320)
-				{
-					printf("displacemen[%d]: %d \n",x,displacement[x]);
-				}
 			} else {
 			}
-		}
-		if(size==320)
-		{
-			printf("\n");
 		}
 	}
 
@@ -286,8 +276,8 @@ void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_
 	// compute fixed sums
 	int32_t xend = size_int - border_int - 1;
 	sumX = xend * (xend + 1) / 2 - border_int * (border_int + 1) / 2 + border_int;
-//	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6;  //////////// why not minus border stuff? For example like below
-	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6 - border_int * (border_int + 1) * (2 * border_int+ 1) / 6 + border_int^2;
+	//	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6;  //////////// why not minus border stuff? For example like below
+	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6 - border_int * (border_int + 1) * (2 * border_int+ 1) / 6 + border_int*border_int;
 	xMean = (size_int - 1) / 2;
 	count = size_int - 2 * border_int;
 
@@ -306,12 +296,12 @@ void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_
 	for (x = border_int; x < size - border_int; x++) {
 		total_error += abs(RES * displacement[x] - divergence_int * x + yMean);
 	}
-	if(size==320)
-	{
-		printf(" divergence_int: %d \n",divergence_int);
-		printf(" flow: %d \n",(yMean-divergence_int*xMean));
-		printf(" total_error: %d \n \n",total_error);
-	}
+	//	if(size==320)
+	//	{
+	//		printf(" divergence_int: %d \n",divergence_int);
+	//		printf(" flow: %d \n",(yMean-divergence_int*xMean));
+	//		printf(" total_error: %d \n \n",total_error);
+	//	}
 }
 
 /**
@@ -347,11 +337,18 @@ void draw_edgeflow_img(struct image_t *img, struct edge_flow_t edgeflow, int32_t
 		image_draw_line(img, &point1_prev, &point2_prev);
 	}
 
-	point1_extra.y = (edgeflow.flow_x + edgeflow.div_x * img->w / 2) / 100 + img->h / 2;
+	//	point1_extra.y = (edgeflow.flow_x + edgeflow.div_x * img->w / 2) / 100 + img->h / 2;
+	//	point1_extra.x = 0;
+	//	point2_extra.y = (edgeflow.flow_x + edgeflow.div_x * img->w / 2) / 100 + img->h / 2;
+	//	point2_extra.x = img->w;
+	//	image_draw_line(img, &point1_extra, &point2_extra);
+
+	point1_extra.y = edgeflow.flow_x + (img->h / 2);
 	point1_extra.x = 0;
-	point2_extra.y = (edgeflow.flow_x + edgeflow.div_x * img->w / 2) / 100 + img->h / 2;
+	point2_extra.y = (edgeflow.flow_x + edgeflow.div_x * img->w) + (img->h / 2);
 	point2_extra.x = img->w;
 	image_draw_line(img, &point1_extra, &point2_extra);
+
 }
 
 /**
