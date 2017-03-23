@@ -452,11 +452,13 @@
 #define STM32_SDC_SDMMC1_DMA_PRIORITY       3
 #define STM32_SDC_SDMMC1_IRQ_PRIORITY       9
 
-/* sdlog message buffer and queue configuration
+/*
+  sdlog message buffer and queue configuration
  */
-#define SDLOG_QUEUE_BUCKETS  512
-#define SDLOG_ALL_BUFFERS_SIZE 8192
-#define SDLOG_MAX_MESSAGE_LEN 252
+#define SDLOG_QUEUE_BUCKETS    1024
+#define SDLOG_MAX_MESSAGE_LEN  300
+#define SDLOG_NUM_FILES        2
+#define SDLOG_ALL_BUFFERS_SIZE (SDLOG_NUM_FILES*16*1024)
 
 /*
  * WDG driver system settings.
