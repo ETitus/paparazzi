@@ -7,12 +7,14 @@
       Made for Linux video Devices.
       Computes x and y velocity using optical flow and distance to ground (using sonar).
     </description>
+	
 
     <!-- Optical flow calculation parameters -->
     <section name="OPTICFLOW" prefix="OPTICFLOW_">
+
       <define name="AGL_ID" value="ABI_BROADCAST" description="ABI receive id for ABI message (sonar measurement) (default: ABI_BROADCAST)"/>
-<define name="IMU_ID" value="ABI_BROADCAST" description="ABI receive id for ABI message (accelerometers) (default: ABI_BROADCAST)"/>
-<define name="BODY_TO_IMU_ID" value="ABI_BROADCAST" description="ABI receive id for ABI message (body to imu quat) (default: ABI_BROADCAST)"/>
+	  <define name="IMU_ID" value="ABI_BROADCAST" description="ABI receive id for ABI message (accelerometers) (default: ABI_BROADCAST)"/>
+      <define name="BODY_TO_IMU_ID" value="ABI_BROADCAST" description="ABI receive id for ABI message (body to imu quat) (default: ABI_BROADCAST)"/>
       <define name="SEND_ABI_ID" value="1" description="ABI sender id for opticflow messages (default: 1)"/>
 
       <!-- Video device parameters -->
@@ -29,7 +31,7 @@
       <!-- General optical flow calculation parameters -->
       <define name="METHOD" value="0" description="Method used to calculate optical flow"/>
       <define name="WINDOW_SIZE" value="10" description="Window size used for block matching (pixels)"/>
-      <define name="SEARCH_DISTANCE" value="10" description="Maximum search distance for blockmatching (pixels)"/>
+      <define name="SEARCH_DISTANCE" value="40" description="Maximum search distance for blockmatching (pixels)"/>
       <define name="SUBPIXEL_FACTOR" value="10" description="Amount of subpixels per pixel, used for more precise (subpixel) calculations of the flow"/>
       <define name="DEROTATION" value="1" description="Derotation either turned on or off (depended on gyroscope measurements)"/>
       <define name="MEDIAN_FILTER" value="0" description="A median filter on the resulting velocities to be turned on or off (last 5 measurements)"/>

@@ -95,7 +95,7 @@ PRINT_CONFIG_VAR(OPTICFLOW_WINDOW_SIZE)
 #ifndef OPTICFLOW_SEARCH_DISTANCE
 #define OPTICFLOW_SEARCH_DISTANCE 20
 #endif
-PRINT_CONFIG_VAR(OPTICFLOW_MAX_SEARCH_DISTANCE)
+PRINT_CONFIG_VAR(OPTICFLOW_SEARCH_DISTANCE)
 
 #ifndef OPTICFLOW_SUBPIXEL_FACTOR
 #define OPTICFLOW_SUBPIXEL_FACTOR 10
@@ -197,14 +197,16 @@ static int cmp_flow(const void *a, const void *b);
  * @param[in] *w The image width
  * @param[in] *h The image height
  */
-void opticflow_calc_init(struct opticflow_t *opticflow, uint16_t w, uint16_t h)
+//void opticflow_calc_init(struct opticflow_t *opticflow, uint16_t w, uint16_t h)
+void opticflow_calc_init(struct opticflow_t *opticflow)
 {
 	init_median_filter(&vel_x_filt);
 	init_median_filter(&vel_y_filt);
 
+	// This should only be run in LK -> moved
 	/* Create the image buffers */
-	image_create(&opticflow->img_gray, w, h, IMAGE_GRAYSCALE);
-	image_create(&opticflow->prev_img_gray, w, h, IMAGE_GRAYSCALE);
+	//	image_create(&opticflow->img_gray, w, h, IMAGE_GRAYSCALE);
+	//	image_create(&opticflow->prev_img_gray, w, h, IMAGE_GRAYSCALE);
 
 	/* Set the previous values */
 	opticflow->got_first_img = false;
@@ -250,6 +252,12 @@ void calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct opticflow_sta
 	//		opticflow_calc_init(opticflow, img->w, img->h);
 	//	}
 
+	// Instead only this part from the init should be run
+	if (opticflow->just_switched_method) {
+		/* Create the image buffers */
+		image_create(&opticflow->img_gray, img->w, img->h, IMAGE_GRAYSCALE);
+		image_create(&opticflow->prev_img_gray, img->w, img->h, IMAGE_GRAYSCALE);
+	}
 	// variables for size_divergence:
 	float size_divergence; int n_samples;
 
@@ -710,25 +718,77 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	int32_t *snapshot_edge_histogram_x = snapshot.x;
 	int32_t *snapshot_edge_histogram_y = snapshot.y;
 
+
+	//	struct timeval before;
+	//	struct timeval after;
+	//
+	//	gettimeofday(&before,NULL);
+	//
+	//for(int i = 0;i<500;i++)
+	//{
+
 	// Estimate pixel wise displacement of the edge histograms for x and y direction WRT snapshot
 	calculate_edge_displacement(edge_hist_x, snapshot_edge_histogram_x,
 			displacement_snap.x, img->w,
 			window_size, disp_range,  der_shift_x);
+//
+//	for(int x=0; x<img->w;x++)
+//	{
+//		printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
+//	}
+//	printf("\n");
+
 	calculate_edge_displacement(edge_hist_y, snapshot_edge_histogram_y,
 			displacement_snap.y, img->h,
 			window_size, disp_range, der_shift_y);
+	//
+	//
+	//}
+	//	gettimeofday(&after,NULL);
+	//	printf("elapsed time for xy displacement: %f s \n",((float)timeval_diff(&before, &after)/1000000.0));
 
 	// Fit a line on the pixel displacement to estimate
 	// the global pixel flow and divergence (RES is resolution)
+
 	line_fit(displacement_snap.x, &edgeflow_snap.div_x,
 			&edgeflow_snap.flow_x, img->w,
 			window_size + disp_range, RES);
+
+//	// manually remove outliers
+//	uint8_t faulty_distance[320];
+//	memset(faulty_distance, 0, sizeof(uint8_t)*img->w);
+//	faulty_distance[107]=1;
+//	faulty_distance[108]=1;
+//	faulty_distance[111]=1;
+//	faulty_distance[113]=1;
+//	faulty_distance[114]=1;
+//	faulty_distance[216]=1;
+//	faulty_distance[217]=1;
+//	faulty_distance[218]=1;
+//	faulty_distance[219]=1;
+//	faulty_distance[220]=1;
+//	faulty_distance[221]=1;
+//	faulty_distance[222]=1;
+//	faulty_distance[223]=1;
+//	faulty_distance[224]=1;
+//	faulty_distance[226]=1;
+//	faulty_distance[227]=1;
+//	faulty_distance[228]=1;
+//	faulty_distance[229]=1;
+//	faulty_distance[230]=1;
+//	faulty_distance[235]=1;
+//	faulty_distance[238]=1;
+//	faulty_distance[239]=1;
+//	faulty_distance[240]=1;
+//
+//	weighted_line_fit(displacement_snap.x, faulty_distance,
+//			&edgeflow_snap.div_x, &edgeflow_snap.flow_x, img->w, window_size + disp_range,RES);
+
 	line_fit(displacement_snap.y, &edgeflow_snap.div_y,
 			&edgeflow_snap.flow_y, img->h,
 			window_size + disp_range, RES);
 
-
-	printf(" flow: %d \n div: %d \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+//	printf(" flow: %d \n div: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
 
 	/* Save Resulting flow in results
 	 * Warning: The flow detected here is different in sign
@@ -751,117 +811,117 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	result->distance_x_snap = dis_x;
 	result->distance_y_snap = dis_y;
 
-//	draw_edgeflow_img(img, edgeflow_snap, snapshot_edge_histogram_x, edge_hist_x);
+	//	draw_edgeflow_img(img, edgeflow_snap, snapshot_edge_histogram_x, edge_hist_x);
 
-	struct point_t point1;
-	struct point_t point2;
-	struct point_t point1_prev;
-	struct point_t point2_prev;
-	struct point_t point1_extra;
-	struct point_t point2_extra;
-	uint16_t i;
-
-	for (i = 1; i < img->w - 1; i++) {
-		point1.y = -(uint16_t)edge_hist_x[i] / 100 + img->h / 3;
-		point1.x = i;
-		point2.y = -(uint16_t)edge_hist_x[i + 1] / 100 + img->h / 3;
-		point2.x = i + 1;
-
-		point1_extra.y = (uint16_t)displacement_snap.x[i] + img->h / 2;
-		point1_extra.x = i;
-		point2_extra.y = (uint16_t)displacement_snap.x[i + 1] + img->h / 2;
-		point2_extra.x = i + 1;
-
-		point1_prev.y = -(uint16_t)snapshot_edge_histogram_x[i] / 100  + img->h * 2 / 3;
-		point1_prev.x = i;
-		point2_prev.y = -(uint16_t)snapshot_edge_histogram_x[i + 1] / 100 + img->h * 2 / 3;
-		point2_prev.x = i + 1;
-
-		image_draw_line(img, &point1, &point2);
-		image_draw_line(img, &point1_prev, &point2_prev);
-		image_draw_line(img, &point1_extra, &point2_extra);
-	}
+	//	struct point_t point1;
+	//	struct point_t point2;
+	//	struct point_t point1_prev;
+	//	struct point_t point2_prev;
+	//	struct point_t point1_extra;
+	//	struct point_t point2_extra;
+	//	uint16_t i;
+	//
+	//	for (i = 1; i < img->w - 1; i++) {
+	//		point1.y = -(uint16_t)edge_hist_x[i] / 100 + img->h / 3;
+	//		point1.x = i;
+	//		point2.y = -(uint16_t)edge_hist_x[i + 1] / 100 + img->h / 3;
+	//		point2.x = i + 1;
+	//
+	//		point1_extra.y = (int32_t)displacement_snap.x[i] + img->h * 3 / 4;
+	//		point1_extra.x = i;
+	//		point2_extra.y = (int32_t)displacement_snap.x[i + 1] + img->h * 3 / 4;
+	//		point2_extra.x = i + 1;
+	//
+	//		point1_prev.y = -(uint16_t)snapshot_edge_histogram_x[i] / 100  + img->h * 2 / 3;
+	//		point1_prev.x = i;
+	//		point2_prev.y = -(uint16_t)snapshot_edge_histogram_x[i + 1] / 100 + img->h * 2 / 3;
+	//		point2_prev.x = i + 1;
+	//
+	//		image_draw_line(img, &point1, &point2);
+	//		image_draw_line(img, &point1_prev, &point2_prev);
+	//		image_draw_line(img, &point1_extra, &point2_extra);
+	//	}
 
 
 	/////////////////////// Frame to Frame
 
-	//	// Calculate which previous edge_hist to compare with the current
-	//	uint8_t previous_frame_nr[2];
-	//	calc_previous_frame_nr(result, opticflow, current_frame_nr, previous_frame_offset, previous_frame_nr);
-	//
-	//	//Select edge histogram from the previous frame nr
-	//	int32_t *prev_edge_histogram_x = edge_hist[previous_frame_nr[0]].x;
-	//	int32_t *prev_edge_histogram_y = edge_hist[previous_frame_nr[1]].y;
-	//
-	//	// Estimate pixel wise displacement of the edge histograms for x and y direction
-	//	calculate_edge_displacement(edge_hist_x, prev_edge_histogram_x,
-	//			displacement.x, img->w,
-	//			window_size, disp_range,  der_shift_x);
-	//	calculate_edge_displacement(edge_hist_y, prev_edge_histogram_y,
-	//			displacement.y, img->h,
-	//			window_size, disp_range, der_shift_y);
-	//
-	//	// Fit a line on the pixel displacement to estimate
-	//	// the global pixel flow and divergence (RES is resolution)
-	//	line_fit(displacement.x, &edgeflow.div_x,
-	//			&edgeflow.flow_x, img->w,
-	//			window_size + disp_range, RES);
-	//	line_fit(displacement.y, &edgeflow.div_y,
-	//			&edgeflow.flow_y, img->h,
-	//			window_size + disp_range, RES);
-	//
-	//	/* Save Resulting flow in results
-	//	 * Warning: The flow detected here is different in sign
-	//	 * and size, therefore this will be multiplied with
-	//	 * the same subpixel factor and -1 to make it on par with
-	//	 * the LK algorithm of t opticalflow_calculator.c
-	//	 * */
-	//	edgeflow.flow_x = -1 * edgeflow.flow_x;
-	//	edgeflow.flow_y = -1 * edgeflow.flow_y;
-	//
-	//	result->flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
-	//	result->flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
-	//
-	//	//Fill up the results optic flow to be on par with LK_fast9
-	//	result->flow_der_x =  result->flow_x;
-	//	result->flow_der_y =  result->flow_y;
-	//	result->corner_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
+	// Calculate which previous edge_hist to compare with the current
+	uint8_t previous_frame_nr[2];
+	calc_previous_frame_nr(result, opticflow, current_frame_nr, previous_frame_offset, previous_frame_nr);
+
+	//Select edge histogram from the previous frame nr
+	int32_t *prev_edge_histogram_x = edge_hist[previous_frame_nr[0]].x;
+	int32_t *prev_edge_histogram_y = edge_hist[previous_frame_nr[1]].y;
+
+	// Estimate pixel wise displacement of the edge histograms for x and y direction
+	calculate_edge_displacement(edge_hist_x, prev_edge_histogram_x,
+			displacement.x, img->w,
+			window_size, disp_range,  der_shift_x);
+	calculate_edge_displacement(edge_hist_y, prev_edge_histogram_y,
+			displacement.y, img->h,
+			window_size, disp_range, der_shift_y);
+
+	// Fit a line on the pixel displacement to estimate
+	// the global pixel flow and divergence (RES is resolution)
+	line_fit(displacement.x, &edgeflow.div_x,
+			&edgeflow.flow_x, img->w,
+			window_size + disp_range, RES);
+	line_fit(displacement.y, &edgeflow.div_y,
+			&edgeflow.flow_y, img->h,
+			window_size + disp_range, RES);
+
+	/* Save Resulting flow in results
+	 * Warning: The flow detected here is different in sign
+	 * and size, therefore this will be multiplied with
+	 * the same subpixel factor and -1 to make it on par with
+	 * the LK algorithm of t opticalflow_calculator.c
+	 * */
+	edgeflow.flow_x = -1 * edgeflow.flow_x;
+	edgeflow.flow_y = -1 * edgeflow.flow_y;
+
+	result->flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
+	result->flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
+
+	//Fill up the results optic flow to be on par with LK_fast9
+	result->flow_der_x =  result->flow_x;
+	result->flow_der_y =  result->flow_y;
+	result->corner_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
 	result->tracked_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
-	//	result->divergence = (float)edgeflow.div_x / RES;                      ///////////////////// flow_x should be div_x ?
-	//	result->div_size = 0.0f;
-	//	result->noise_measurement = 0.0f;
-	//	result->surface_roughness = 0.0f;
-	//
-	//	//......................Calculating VELOCITY ..................... //
-	//
-	//	/*Estimate fps per direction
-	//	 * This is the fps with adaptive horizon for subpixel flow, which is not similar
-	//	 * to the loop speed of the algorithm. The faster the quadcopter flies
-	//	 * the higher it becomes
-	//	 */
-	//	float fps_x = 0;
-	//	float fps_y = 0;
-	//	float time_diff_x = (float)(timeval_diff(&edge_hist[previous_frame_nr[0]].frame_time, &img->ts)) / 1000.;
-	//	float time_diff_y = (float)(timeval_diff(&edge_hist[previous_frame_nr[1]].frame_time, &img->ts)) / 1000.;
-	//	fps_x = 1 / (time_diff_x);
-	//	fps_y = 1 / (time_diff_y);
-	//
-	//	result->fps = fps_x;
-	//
-	//	// Calculate velocity
-	//	float vel_x = edgeflow.flow_x * fps_x * state->agl * OPTICFLOW_FOV_W / (img->w * RES);
-	//	float vel_y = edgeflow.flow_y * fps_y * state->agl * OPTICFLOW_FOV_H / (img->h * RES);
-	//
-	//	//Apply a  median filter to the velocity if wanted
-	//	if (opticflow->median_filter == true) {
-	//		result->vel_x = (float)update_median_filter(&vel_x_filt, (int32_t)(vel_x * 1000)) / 1000;
-	//		result->vel_y = (float)update_median_filter(&vel_y_filt, (int32_t)(vel_y * 1000)) / 1000;
-	//	} else {
-	//		result->vel_x = vel_x;
-	//		result->vel_y = vel_y;
-	//	}
-	//
-	//	result->noise_measurement = 0.2;
+	result->divergence = (float)edgeflow.div_x / RES;                      ///////////////////// flow_x should be div_x ?
+	result->div_size = 0.0f;
+	result->noise_measurement = 0.0f;
+	result->surface_roughness = 0.0f;
+
+	//......................Calculating VELOCITY ..................... //
+
+	/*Estimate fps per direction
+	 * This is the fps with adaptive horizon for subpixel flow, which is not similar
+	 * to the loop speed of the algorithm. The faster the quadcopter flies
+	 * the higher it becomes
+	 */
+	float fps_x = 0;
+	float fps_y = 0;
+	float time_diff_x = (float)(timeval_diff(&edge_hist[previous_frame_nr[0]].frame_time, &img->ts)) / 1000.;
+	float time_diff_y = (float)(timeval_diff(&edge_hist[previous_frame_nr[1]].frame_time, &img->ts)) / 1000.;
+	fps_x = 1 / (time_diff_x);
+	fps_y = 1 / (time_diff_y);
+
+	result->fps = fps_x;
+
+	// Calculate velocity
+	float vel_x = edgeflow.flow_x * fps_x * state->agl * OPTICFLOW_FOV_W / (img->w * RES);
+	float vel_y = edgeflow.flow_y * fps_y * state->agl * OPTICFLOW_FOV_H / (img->h * RES);
+
+	//Apply a  median filter to the velocity if wanted
+	if (opticflow->median_filter == true) {
+		result->vel_x = (float)update_median_filter(&vel_x_filt, (int32_t)(vel_x * 1000)) / 1000;
+		result->vel_y = (float)update_median_filter(&vel_y_filt, (int32_t)(vel_y * 1000)) / 1000;
+	} else {
+		result->vel_x = vel_x;
+		result->vel_y = vel_y;
+	}
+
+	result->noise_measurement = 0.2;
 
 
 
@@ -895,11 +955,6 @@ void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_
 	if (switch_counter != opticflow->method) {
 		opticflow->just_switched_method = true;
 		switch_counter = opticflow->method;
-
-
-		// TODO: For now this is here, but it is still run on each switch, rather than only ONCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		opticflow_calc_init(opticflow, img->w, img->h);
-
 	} else {
 		opticflow->just_switched_method = false;
 	}

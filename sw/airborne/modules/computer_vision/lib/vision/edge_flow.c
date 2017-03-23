@@ -253,19 +253,27 @@ uint32_t getMinimum(uint32_t *a, uint32_t n)
  * @param[in] border  A border offset of the array that should not be considerd for the line fit
  * @param[in] RES  Resolution to be used for the integer based linefit
  */
-void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_t size, uint32_t border,
+void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t size, uint32_t border,
 		uint16_t RES)
 {
 	int32_t x;
 
-	int32_t count = 0;
-	int32_t sumY = 0;
-	int32_t sumX = 0;
-	int32_t sumX2 = 0;
-	int32_t sumXY = 0;
-	int32_t xMean = 0;
-	int32_t yMean = 0;
-	int32_t divergence_int = 0;
+	//	int32_t count = 0;
+	//	int32_t sumY = 0;
+	//	int32_t sumX = 0;
+	//	int32_t sumX2 = 0;
+	//	int32_t sumXY = 0;
+	//	int32_t xMean = 0;
+	//	int32_t yMean = 0;
+	float count = 0;
+	float sumY = 0;
+	float sumX = 0;
+	float sumX2 = 0;
+	float sumXY = 0;
+	float xMean = 0;
+	float yMean = 0;
+//	int32_t divergence_int = 0;
+	float divergence_float = 0;
 	int32_t border_int = (int32_t)border;
 	int32_t size_int = (int32_t)size;
 	uint32_t total_error = 0;
@@ -288,21 +296,136 @@ void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_
 
 	yMean = RES * sumY / count;
 
-	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
+//	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
+	divergence_float = (float) ( (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );    // compute slope of line ax + b
 
-	*divergence = divergence_int;
-	*flow = yMean - *divergence * xMean;  // compute b (or y) intercept of line ax + b
+
+	//	*divergence = divergence_int;
+	*divergence = divergence_float;
+	*flow = (int32_t)(yMean - *divergence * xMean);  // compute b (or y) intercept of line ax + b
 
 	for (x = border_int; x < size - border_int; x++) {
-		total_error += abs(RES * displacement[x] - divergence_int * x + yMean);
+		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
 	}
-	//	if(size==320)
-	//	{
-	//		printf(" divergence_int: %d \n",divergence_int);
-	//		printf(" flow: %d \n",(yMean-divergence_int*xMean));
-	//		printf(" total_error: %d \n \n",total_error);
-	//	}
+//	if(size==320)
+//	{
+//		printf("Regular \n");
+//
+//		printf(" sumY: %f \n",sumY);
+//
+//		printf(" RES: %d \n",RES);
+//		printf(" sumXY: %f \n",sumXY);
+//		printf(" sumX: %f \n",sumX);
+//		printf(" yMean: %f \n",yMean);
+//		printf(" sumX2: %f \n",sumX2);
+//		printf(" xMean: %f \n",xMean);
+//
+//		printf(" divergence_int: %d \n",divergence_int);
+//		printf(" divergence_float: %f \n",divergence_float);
+//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
+//		printf(" total_error: %d \n \n",total_error);
+//	}
 }
+
+/* weighted_line_fit: fits a line using least squares to the histogram disparity map, excluding the areas that have faulty distance measurements
+ * \param displacement is an array that contains the pixel displacements of the compared edgehistograms
+ * \param faulty_distance is an array with binary values, to indicate where the distance measure was faulty and not (those coordinates will not be included in the line fit)
+ * \param divergence is slope of the optical flow field
+ * \param slope is intercept of the optical flow (calculated from middle from image)
+ * \param size is the  size of stereo_distance_per_column
+ * \param border is the search window + search distance used in blockmatching
+ * \param RES is resolution used to calculate the line fit (int based math)
+ *
+ * TODO: make the linefit so, that it can fit the line with uncertainty weights.
+ * */
+void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
+		float *divergence, int32_t *flow, uint32_t size, uint32_t border,
+		uint16_t RES)
+{
+
+	int32_t x;
+
+	float count = 0;
+	float sumY = 0;
+	float sumX = 0;
+	float sumX2 = 0;
+	float sumXY = 0;
+
+	float xMean = 0;
+	float yMean = 0;
+
+	//	int32_t count = 0;
+	//	int32_t sumY = 0;
+	//	int32_t sumX = 0;
+	//	int32_t sumX2 = 0;
+	//	int32_t sumXY = 0;
+	//
+	//	int32_t xMean = 0;
+	//	int32_t yMean = 0;
+//	int32_t divergence_int = 0;
+	float divergence_float = 0;
+	int32_t border_int = (int32_t) border;
+	int32_t size_int = (int32_t) size;
+	uint32_t total_error = 0;
+
+	*divergence = 0;
+	*flow = 0;
+
+	// compute fixed sums
+	for (x = border_int; x < size_int - border_int; x++) {
+		if (faulty_distance[x] == 0) {
+			sumX += x;
+			sumY += RES *  displacement[x];
+
+			sumX2 += x * x;
+			sumXY += x * displacement[x] * RES;
+
+			count++;
+		}
+	}
+
+	*divergence = 0;  //slope;
+	*flow = 0;  //intercept;
+
+	xMean = sumX / count;
+	yMean = sumY / count;
+
+	if ((sumX2 - sumX * xMean) != 0) { // preven seg fault
+//		divergence_int = (sumXY - sumX * yMean) / (sumX2 - sumX * xMean);  // compute slope of line ax + b
+		divergence_float = (float) ((sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );  // compute slope of line ax + b
+
+//		*divergence = divergence_int;
+		*divergence = divergence_float;
+	}
+
+	*flow = (int32_t)(yMean - divergence_float * xMean); // compute b (or y) intercept of line ax + b
+
+
+	for (x = border_int; x < size_int - border_int; x++) {
+		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
+	}
+//	if(size==320)
+//	{
+//		printf("Weighted \n");
+//
+//		printf(" sumY: %f \n",sumY);
+//
+//		printf(" RES: %d \n",RES);
+//		printf(" sumXY: %f \n",sumXY);
+//		printf(" sumX: %f \n",sumX);
+//		printf(" yMean: %f \n",yMean);
+//		printf(" sumX2: %f \n",sumX2);
+//		printf(" xMean: %f \n",xMean);
+//
+//
+//		printf(" divergence_int: %d \n",divergence_int);
+//		printf(" divergence_float: %f \n",divergence_float);
+//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
+//		printf(" total_error: %d \n \n",total_error);
+//
+//	}
+}
+
 
 /**
  * Draws edgehistogram, displacement and linefit directly on the image for debugging (only for edgeflow in horizontal direction!!)

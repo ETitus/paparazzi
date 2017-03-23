@@ -75,9 +75,9 @@ struct edgeflow_displacement_t {
 
 struct edge_flow_t {
   int32_t flow_x;
-  int32_t div_x;
+  float div_x;
   int32_t flow_y;
-  int32_t div_y;
+  float div_y;
 };
 
 
@@ -96,8 +96,11 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 // TODO: find a way to incorperate/find these functions in paparazzi
 uint32_t timeval_diff2(struct timeval *starttime, struct timeval *finishtime);
 uint32_t getMinimum(uint32_t *a, uint32_t n);
-void line_fit(int32_t *displacement, int32_t *divergence, int32_t *flow, uint32_t size, uint32_t border,
+void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t size, uint32_t border,
               uint16_t RES);
+void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
+		float *divergence, int32_t *flow, uint32_t size, uint32_t border,
+                           uint16_t RES);
 uint32_t getAmountPeaks(int32_t *edgehist, uint32_t median, int32_t size);
 
 
