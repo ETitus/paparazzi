@@ -309,13 +309,6 @@ void gps_init(void)
 	AbiBindMsgGPS(ABI_BROADCAST, &gps_ev, gps_cb);
 
 #if PERIODIC_TELEMETRY
-<<<<<<< HEAD
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS, send_gps);
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_INT, send_gps_int);
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_LLA, send_gps_lla);
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_SOL, send_gps_sol);
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SVINFO, send_svinfo);
-=======
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS, send_gps);
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_INT, send_gps_int);
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_LLA, send_gps_lla);
@@ -323,7 +316,6 @@ void gps_init(void)
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SVINFO, send_svinfo);
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_RTK, send_gps_rtk);
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_GPS_RXMRTCM, send_gps_rxmrtcm);
->>>>>>> cdf9b2247e51e4f65ed735bce964cc9ab0948af1
 #endif
 
   // Initializing counter variables to count the number of Rtcm msgs in the input stream(for each msg type)
