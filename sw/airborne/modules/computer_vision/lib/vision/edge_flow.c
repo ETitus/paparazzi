@@ -120,24 +120,15 @@ void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
 			edge_histogram[x] = 0;
 			for (y = 0; y < image_height; y++) {
 				sobel_sum = 0;
-				for (c = -1; c <= 1; c++) {
-					idx = interlace * (image_width * y + (x + c)); // 2 for interlace
-
-					sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];    /////////////////////////// WHY +1?
-					//										if((x==318))//&&(y==(image_height-1)))
-					//										{
-					//						printf("sobel operator : %d \n", Sobel[c + 1]);
-					//											printf("idx: %d , containing %d \n", idx,img_buf[idx]);
-					//											printf("idx+1: %d , containing %d  ???????????????????????\n", idx+1,img_buf[idx+1]);
-					//						printf("during sobel: %d \n", sobel_sum);
-					//										}
+				for (c = -1; c <= 1; c+=2) {
+					idx = interlace * (image_width * y + (x + c));
+					sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];
 				}
 				sobel_sum = abs(sobel_sum);
 				if (sobel_sum > edge_threshold) {
 					edge_histogram[x] += sobel_sum;
 				}
 			}
-			//						printf("edgehist[%d]: %d \n",x,edge_histogram[x]);
 		}
 	} else if (direction == 'y') {
 		// set values that are not visited
@@ -147,10 +138,10 @@ void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
 			for (x = 0; x < image_width; x++) {
 				sobel_sum = 0;
 
-				for (c = -1; c <= 1; c++) {
-					idx = interlace * (image_width * (y + c) + x); // 2 for interlace
+				for (c = -1; c <= 1; c+=2) {
+					idx = interlace * (image_width * (y + c) + x);
 
-					sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];    /////////////////////////// WHY +1?
+					sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];
 				}
 				sobel_sum = abs(sobel_sum);
 				if (sobel_sum > edge_threshold) {
@@ -166,7 +157,7 @@ void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
  * Calculate_displacement calculates the displacement between two histograms
  * @param[in] *edge_histogram  The edge histogram from the current frame_step
  * @param[in] *edge_histogram_prev  The edge histogram from the previous frame_step
- * @param[in] *displacement array with pixel displacement of the sequential edge histograms
+ * @param[out] *displacement array with pixel displacement of the sequential edge histograms
  * @param[in] size  Indicating the size of the displacement array
  * @param[in] window Indicating the search window size
  * @param[in] disp_range  Indicating the maximum disparity range for the block matching
@@ -201,23 +192,20 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 	if (border[0] >= border[1] || abs(der_shift) >= 10) {
 		SHIFT_TOO_FAR = 1;
 	}
-	{													// what is meant here?
-		// TODO: replace with arm offset subtract
-		for (x = border[0]; x < border[1]; x++) {
-			displacement[x] = 0;
-			if (!SHIFT_TOO_FAR) {
-				for (c = -D; c <= D; c++) {
-					SAD_temp[c + D] = 0;
-					for (r = -W; r <= W; r++) {
-						SAD_temp[c + D] += abs(edge_histogram[x + r] - edge_histogram_prev[x + r + c + der_shift]);
-					}
+	// TODO: replace with arm offset subtract
+	for (x = border[0]; x < border[1]; x++) {
+		displacement[x] = 0;
+		if (!SHIFT_TOO_FAR) {
+			for (c = -D; c <= D; c++) {
+				SAD_temp[c + D] = 0;
+				for (r = -W; r <= W; r++) {
+					SAD_temp[c + D] += abs(edge_histogram[x + r] - edge_histogram_prev[x + r + c + der_shift]);
 				}
-				displacement[x] = (int32_t)getMinimum(SAD_temp, 2 * D + 1) - D;
-			} else {
 			}
+			displacement[x] = (int32_t)getMinimum(SAD_temp, 2 * D + 1) - D;
+		} else {
 		}
 	}
-
 }
 
 /**
@@ -272,7 +260,7 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 	float sumXY = 0;
 	float xMean = 0;
 	float yMean = 0;
-//	int32_t divergence_int = 0;
+	//	int32_t divergence_int = 0;
 	float divergence_float = 0;
 	int32_t border_int = (int32_t)border;
 	int32_t size_int = (int32_t)size;
@@ -284,7 +272,6 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 	// compute fixed sums
 	int32_t xend = size_int - border_int - 1;
 	sumX = xend * (xend + 1) / 2 - border_int * (border_int + 1) / 2 + border_int;
-	//	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6;  //////////// why not minus border stuff? For example like below
 	sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6 - border_int * (border_int + 1) * (2 * border_int+ 1) / 6 + border_int*border_int;
 	xMean = (size_int - 1) / 2;
 	count = size_int - 2 * border_int;
@@ -296,7 +283,7 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 
 	yMean = RES * sumY / count;
 
-//	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
+	//	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
 	divergence_float = (float) ( (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );    // compute slope of line ax + b
 
 
@@ -307,24 +294,24 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 	for (x = border_int; x < size - border_int; x++) {
 		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
 	}
-//	if(size==320)
-//	{
-//		printf("Regular \n");
-//
-//		printf(" sumY: %f \n",sumY);
-//
-//		printf(" RES: %d \n",RES);
-//		printf(" sumXY: %f \n",sumXY);
-//		printf(" sumX: %f \n",sumX);
-//		printf(" yMean: %f \n",yMean);
-//		printf(" sumX2: %f \n",sumX2);
-//		printf(" xMean: %f \n",xMean);
-//
-//		printf(" divergence_int: %d \n",divergence_int);
-//		printf(" divergence_float: %f \n",divergence_float);
-//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
-//		printf(" total_error: %d \n \n",total_error);
-//	}
+	//	if(size==320)
+	//	{
+	//		printf("Regular \n");
+	//
+	//		printf(" sumY: %f \n",sumY);
+	//
+	//		printf(" RES: %d \n",RES);
+	//		printf(" sumXY: %f \n",sumXY);
+	//		printf(" sumX: %f \n",sumX);
+	//		printf(" yMean: %f \n",yMean);
+	//		printf(" sumX2: %f \n",sumX2);
+	//		printf(" xMean: %f \n",xMean);
+	//
+	//		printf(" divergence_int: %d \n",divergence_int);
+	//		printf(" divergence_float: %f \n",divergence_float);
+	//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
+	//		printf(" total_error: %d \n \n",total_error);
+	//	}
 }
 
 /* weighted_line_fit: fits a line using least squares to the histogram disparity map, excluding the areas that have faulty distance measurements
@@ -362,7 +349,7 @@ void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 	//
 	//	int32_t xMean = 0;
 	//	int32_t yMean = 0;
-//	int32_t divergence_int = 0;
+	//	int32_t divergence_int = 0;
 	float divergence_float = 0;
 	int32_t border_int = (int32_t) border;
 	int32_t size_int = (int32_t) size;
@@ -391,10 +378,10 @@ void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 	yMean = sumY / count;
 
 	if ((sumX2 - sumX * xMean) != 0) { // preven seg fault
-//		divergence_int = (sumXY - sumX * yMean) / (sumX2 - sumX * xMean);  // compute slope of line ax + b
+		//		divergence_int = (sumXY - sumX * yMean) / (sumX2 - sumX * xMean);  // compute slope of line ax + b
 		divergence_float = (float) ((sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );  // compute slope of line ax + b
 
-//		*divergence = divergence_int;
+		//		*divergence = divergence_int;
 		*divergence = divergence_float;
 	}
 
@@ -404,26 +391,26 @@ void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 	for (x = border_int; x < size_int - border_int; x++) {
 		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
 	}
-//	if(size==320)
-//	{
-//		printf("Weighted \n");
-//
-//		printf(" sumY: %f \n",sumY);
-//
-//		printf(" RES: %d \n",RES);
-//		printf(" sumXY: %f \n",sumXY);
-//		printf(" sumX: %f \n",sumX);
-//		printf(" yMean: %f \n",yMean);
-//		printf(" sumX2: %f \n",sumX2);
-//		printf(" xMean: %f \n",xMean);
-//
-//
-//		printf(" divergence_int: %d \n",divergence_int);
-//		printf(" divergence_float: %f \n",divergence_float);
-//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
-//		printf(" total_error: %d \n \n",total_error);
-//
-//	}
+	//	if(size==320)
+	//	{
+	//		printf("Weighted \n");
+	//
+	//		printf(" sumY: %f \n",sumY);
+	//
+	//		printf(" RES: %d \n",RES);
+	//		printf(" sumXY: %f \n",sumXY);
+	//		printf(" sumX: %f \n",sumX);
+	//		printf(" yMean: %f \n",yMean);
+	//		printf(" sumX2: %f \n",sumX2);
+	//		printf(" xMean: %f \n",xMean);
+	//
+	//
+	//		printf(" divergence_int: %d \n",divergence_int);
+	//		printf(" divergence_float: %f \n",divergence_float);
+	//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
+	//		printf(" total_error: %d \n \n",total_error);
+	//
+	//	}
 }
 
 

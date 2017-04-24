@@ -97,6 +97,11 @@ PRINT_CONFIG_VAR(OPTICFLOW_WINDOW_SIZE)
 #endif
 PRINT_CONFIG_VAR(OPTICFLOW_SEARCH_DISTANCE)
 
+#ifndef OPTICFLOW_RESOLUTION_FACTOR
+#define OPTICFLOW_RESOLUTION_FACTOR 100
+#endif
+PRINT_CONFIG_VAR(OPTICFLOW_RESOLUTION_FACTOR)
+
 #ifndef OPTICFLOW_SUBPIXEL_FACTOR
 #define OPTICFLOW_SUBPIXEL_FACTOR 10
 #endif
@@ -194,24 +199,9 @@ static int cmp_flow(const void *a, const void *b);
 /**
  * Initialize the opticflow calculator
  * @param[out] *opticflow The new optical flow calculator
- * @param[in] *w The image width
- * @param[in] *h The image height
  */
-//void opticflow_calc_init(struct opticflow_t *opticflow, uint16_t w, uint16_t h)
 void opticflow_calc_init(struct opticflow_t *opticflow)
 {
-	init_median_filter(&vel_x_filt);
-	init_median_filter(&vel_y_filt);
-
-	// This should only be run in LK -> moved
-	/* Create the image buffers */
-	//	image_create(&opticflow->img_gray, w, h, IMAGE_GRAYSCALE);
-	//	image_create(&opticflow->prev_img_gray, w, h, IMAGE_GRAYSCALE);
-
-	/* Set the previous values */
-	opticflow->got_first_img = false;
-	FLOAT_RATES_ZERO(opticflow->prev_rates);
-
 	/* Set the default values */
 	opticflow->method = OPTICFLOW_METHOD; //0 = LK_fast9, 1 = Edgeflow
 	opticflow->window_size = OPTICFLOW_WINDOW_SIZE;
@@ -222,6 +212,7 @@ void opticflow_calc_init(struct opticflow_t *opticflow)
 
 	opticflow->max_track_corners = OPTICFLOW_MAX_TRACK_CORNERS;
 	opticflow->subpixel_factor = OPTICFLOW_SUBPIXEL_FACTOR;
+	opticflow->resolution_factor = OPTICFLOW_RESOLUTION_FACTOR;
 	opticflow->max_iterations = OPTICFLOW_MAX_ITERATIONS;
 	opticflow->threshold_vec = OPTICFLOW_THRESHOLD_VEC;
 	opticflow->pyramid_level = OPTICFLOW_PYRAMID_LEVEL;
@@ -235,7 +226,6 @@ void opticflow_calc_init(struct opticflow_t *opticflow)
 	opticflow->fast9_padding = OPTICFLOW_FAST9_PADDING;
 	opticflow->fast9_rsize = 512;
 	opticflow->fast9_ret_corners = malloc(sizeof(struct point_t) * opticflow->fast9_rsize);
-
 }
 /**
  * Run the optical flow with fast9 and lukaskanade on a new image frame
@@ -247,10 +237,18 @@ void opticflow_calc_init(struct opticflow_t *opticflow)
 void calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
 		struct opticflow_result_t *result)
 {
-	// This shouldnt run inside of LK...
-	//	if (opticflow->just_switched_method) {
-	//		opticflow_calc_init(opticflow, img->w, img->h);
-	//	}
+	if (opticflow->just_switched_method) {
+		/* Create the image buffers */
+		image_create(&opticflow->img_gray, img->w, img->h, IMAGE_GRAYSCALE);
+		image_create(&opticflow->prev_img_gray, img->w, img->h, IMAGE_GRAYSCALE);
+
+		/* Set the previous values */
+		opticflow->got_first_img = false;
+		FLOAT_RATES_ZERO(opticflow->prev_rates);
+
+		init_median_filter(&vel_x_filt);
+		init_median_filter(&vel_y_filt);
+	}
 
 	// Instead only this part from the init should be run
 	if (opticflow->just_switched_method) {
@@ -479,7 +477,7 @@ void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *
 		window_size = MAX_WINDOW_SIZE;
 	}
 
-	uint16_t RES = opticflow->subpixel_factor;
+	uint16_t RES = opticflow->resolution_factor;
 
 	//......................Calculating EdgeFlow..................... //
 
@@ -544,12 +542,15 @@ void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *
 	result->flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
 	result->flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
 
+	result->flow_x = (int16_t)edgeflow.flow_x / RES;
+	result->flow_y = (int16_t)edgeflow.flow_y / RES;
+
 	//Fill up the results optic flow to be on par with LK_fast9
 	result->flow_der_x =  result->flow_x;
 	result->flow_der_y =  result->flow_y;
 	result->corner_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
 	result->tracked_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
-	result->divergence = (float)edgeflow.div_x / RES;   /////////////////////// flow_x should be div_x?????
+	result->divergence = (float)edgeflow.div_x / RES;
 	result->div_size = 0.0f;
 	result->noise_measurement = 0.0f;
 	result->surface_roughness = 0.0f;
@@ -593,7 +594,7 @@ void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *
 	// Increment and wrap current time frame
 	current_frame_nr = (current_frame_nr + 1) % MAX_HORIZON;
 
-	// Does this stop the memory leak?
+	// Free malloc'd variables
 	free(displacement.x);
 	free(displacement.y);
 }
@@ -660,14 +661,13 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 		window_size = MAX_WINDOW_SIZE;
 	}
 
-	uint16_t RES = opticflow->subpixel_factor;
+	uint16_t RES = opticflow->resolution_factor;
 
 	//......................Calculating EdgeFlow..................... //
 
 	// Calculate current frame's edge histogram
 	int32_t *edge_hist_x = edge_hist[current_frame_nr].x;
 	int32_t *edge_hist_y = edge_hist[current_frame_nr].y;
-
 	calculate_edge_histogram(img, edge_hist_x, 'x', 0);
 	calculate_edge_histogram(img, edge_hist_y, 'y', 0);
 
@@ -731,12 +731,12 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	calculate_edge_displacement(edge_hist_x, snapshot_edge_histogram_x,
 			displacement_snap.x, img->w,
 			window_size, disp_range,  der_shift_x);
-//
-//	for(int x=0; x<img->w;x++)
-//	{
-//		printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
-//	}
-//	printf("\n");
+	//
+	//	for(int x=0; x<img->w;x++)
+	//	{
+	//		printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
+	//	}
+	//	printf("\n");
 
 	calculate_edge_displacement(edge_hist_y, snapshot_edge_histogram_y,
 			displacement_snap.y, img->h,
@@ -754,45 +754,45 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 			&edgeflow_snap.flow_x, img->w,
 			window_size + disp_range, RES);
 
-//	// manually remove outliers
-//	uint8_t faulty_distance[320];
-//	memset(faulty_distance, 0, sizeof(uint8_t)*img->w);
-//	faulty_distance[107]=1;
-//	faulty_distance[108]=1;
-//	faulty_distance[111]=1;
-//	faulty_distance[113]=1;
-//	faulty_distance[114]=1;
-//	faulty_distance[216]=1;
-//	faulty_distance[217]=1;
-//	faulty_distance[218]=1;
-//	faulty_distance[219]=1;
-//	faulty_distance[220]=1;
-//	faulty_distance[221]=1;
-//	faulty_distance[222]=1;
-//	faulty_distance[223]=1;
-//	faulty_distance[224]=1;
-//	faulty_distance[226]=1;
-//	faulty_distance[227]=1;
-//	faulty_distance[228]=1;
-//	faulty_distance[229]=1;
-//	faulty_distance[230]=1;
-//	faulty_distance[235]=1;
-//	faulty_distance[238]=1;
-//	faulty_distance[239]=1;
-//	faulty_distance[240]=1;
-//
-//	weighted_line_fit(displacement_snap.x, faulty_distance,
-//			&edgeflow_snap.div_x, &edgeflow_snap.flow_x, img->w, window_size + disp_range,RES);
+	//	// manually remove outliers
+	//	uint8_t faulty_distance[320];
+	//	memset(faulty_distance, 0, sizeof(uint8_t)*img->w);
+	//	faulty_distance[107]=1;
+	//	faulty_distance[108]=1;
+	//	faulty_distance[111]=1;
+	//	faulty_distance[113]=1;
+	//	faulty_distance[114]=1;
+	//	faulty_distance[216]=1;
+	//	faulty_distance[217]=1;
+	//	faulty_distance[218]=1;
+	//	faulty_distance[219]=1;
+	//	faulty_distance[220]=1;
+	//	faulty_distance[221]=1;
+	//	faulty_distance[222]=1;
+	//	faulty_distance[223]=1;
+	//	faulty_distance[224]=1;
+	//	faulty_distance[226]=1;
+	//	faulty_distance[227]=1;
+	//	faulty_distance[228]=1;
+	//	faulty_distance[229]=1;
+	//	faulty_distance[230]=1;
+	//	faulty_distance[235]=1;
+	//	faulty_distance[238]=1;
+	//	faulty_distance[239]=1;
+	//	faulty_distance[240]=1;
+	//
+	//	weighted_line_fit(displacement_snap.x, faulty_distance,
+	//			&edgeflow_snap.div_x, &edgeflow_snap.flow_x, img->w, window_size + disp_range,RES);
 
 	line_fit(displacement_snap.y, &edgeflow_snap.div_y,
 			&edgeflow_snap.flow_y, img->h,
 			window_size + disp_range, RES);
 
-//	printf(" flow: %d \n div: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+	//	printf(" flow: %d \n div: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
 
 	/* Save Resulting flow in results
 	 * Warning: The flow detected here is different in sign
-	 * and size, therefore this will be multiplied with
+	 * and size, therefore this will be divided by
 	 * the same subpixel factor and -1 to make it on par with
 	 * the LK algorithm of t opticalflow_calculator.c
 	 * */
@@ -887,7 +887,7 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	result->flow_der_y =  result->flow_y;
 	result->corner_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
 	result->tracked_cnt = getAmountPeaks(edge_hist_x, 500 , img->w);
-	result->divergence = (float)edgeflow.div_x / RES;                      ///////////////////// flow_x should be div_x ?
+	result->divergence = (float)edgeflow.div_x / RES;
 	result->div_size = 0.0f;
 	result->noise_measurement = 0.0f;
 	result->surface_roughness = 0.0f;
@@ -931,7 +931,7 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	// Increment and wrap current time frame
 	current_frame_nr = (current_frame_nr + 1) % MAX_HORIZON;
 
-	// Does this stop the memory leak?
+	// Free malloc'd variables
 	free(displacement.x);
 	free(displacement.y);
 	free(displacement_snap.x);
