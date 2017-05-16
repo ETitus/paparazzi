@@ -88,7 +88,6 @@ void  calc_previous_frame_nr(struct opticflow_result_t *result, struct opticflow
 void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
 		char direction, uint16_t edge_threshold)
 {
-<<<<<<< HEAD
 	uint8_t *img_buf = (uint8_t *)img->buf;
 
 	// TODO use arm_conv_q31()
@@ -152,73 +151,6 @@ void calculate_edge_histogram(struct image_t *img, int32_t edge_histogram[],
 		}
 	} else
 		while (1);  // hang to show user something isn't right
-=======
-  uint8_t *img_buf = (uint8_t *)img->buf;
-
-  // TODO use arm_conv_q31()
-  int32_t sobel_sum = 0;
-  int32_t Sobel[3] = { -1, 0, 1};
-
-  uint32_t y = 0, x = 0;
-  int32_t c = 0;
-
-  uint32_t idx = 0;
-
-  uint16_t image_width = img->w;
-  uint16_t image_height = img->h;
-  uint32_t interlace;
-  if (img->type == IMAGE_GRAYSCALE) {
-    interlace = 1;
-  } else {
-    if (img->type == IMAGE_YUV422) {
-      interlace = 2;
-    } else
-      while (1);   // hang to show user something isn't right
-  }
-
-
-  // compute edge histogram
-  if (direction == 'x') {
-    // set values that are not visited
-    edge_histogram[0] = edge_histogram[image_width - 1] = 0;
-    for (x = 1; x < image_width - 1; x++) {
-      edge_histogram[x] = 0;
-      for (y = 0; y < image_height; y++) {
-        sobel_sum = 0;
-
-        for (c = -1; c <= 1; c+=2) {
-          idx = interlace * (image_width * y + (x + c));
-
-          sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];
-        }
-        sobel_sum = abs(sobel_sum);
-        if (sobel_sum > edge_threshold) {
-          edge_histogram[x] += sobel_sum;
-        }
-      }
-    }
-  } else if (direction == 'y') {
-    // set values that are not visited
-    edge_histogram[0] = edge_histogram[image_height - 1] = 0;
-    for (y = 1; y < image_height - 1; y++) {
-      edge_histogram[y] = 0;
-      for (x = 0; x < image_width; x++) {
-        sobel_sum = 0;
-
-        for (c = -1; c <= 1; c+=2) {
-          idx = interlace * (image_width * (y + c) + x);
-
-          sobel_sum += Sobel[c + 1] * (int32_t)img_buf[idx];
-        }
-        sobel_sum = abs(sobel_sum);
-        if (sobel_sum > edge_threshold) {
-          edge_histogram[y] += sobel_sum;
-        }
-      }
-    }
-  } else
-    while (1);  // hang to show user something isn't right
->>>>>>> 124fa3267def5384edfc58afc730a671a63fedc9
 }
 
 /**
@@ -235,7 +167,6 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 		uint16_t size,
 		uint8_t window, uint8_t disp_range, int32_t der_shift)
 {
-<<<<<<< HEAD
 	int32_t c = 0, r = 0;
 	uint32_t x = 0;
 	uint32_t SAD_temp[2 * DISP_RANGE_MAX + 1]; // size must be at least 2*D + 1
@@ -264,7 +195,6 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 	// TODO: replace with arm offset subtract
 	for (x = border[0]; x < border[1]; x++) {
 		//			for (x = border[1]; x > border[0]; x--) {
-		displacement[x] = 0;
 		if (!SHIFT_TOO_FAR) {
 			for (c = -D; c <= D; c++) {
 				SAD_temp[c + D] = 0;
@@ -276,48 +206,6 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 		} else {
 		}
 	}
-=======
-  int32_t c = 0, r = 0;
-  uint32_t x = 0;
-  uint32_t SAD_temp[2 * DISP_RANGE_MAX + 1]; // size must be at least 2*D + 1
-
-  int32_t W = window;
-  int32_t D = disp_range;
-
-
-  uint8_t SHIFT_TOO_FAR = 0;
-  memset(displacement, 0, sizeof(int32_t)*size);
-
-  int32_t border[2];
-
-  if (der_shift < 0) {
-    border[0] =  W + D + der_shift;
-    border[1] = size - W - D;
-  } else if (der_shift > 0) {
-    border[0] =  W + D;
-    border[1] = size - W - D - der_shift;
-  } else {
-    border[0] =  W + D;
-    border[1] = size - W - D;
-  }
-
-  if (border[0] >= border[1] || abs(der_shift) >= 10) {
-    SHIFT_TOO_FAR = 1;
-  }
-    // TODO: replace with arm offset subtract
-    for (x = border[0]; x < border[1]; x++) {
-      if (!SHIFT_TOO_FAR) {
-        for (c = -D; c <= D; c++) {
-          SAD_temp[c + D] = 0;
-          for (r = -W; r <= W; r++) {
-            SAD_temp[c + D] += abs(edge_histogram[x + r] - edge_histogram_prev[x + r + c + der_shift]);
-          }
-        }
-        displacement[x] = (int32_t)getMinimum(SAD_temp, 2 * D + 1) - D;
-      } else {
-      }
-    }
->>>>>>> 124fa3267def5384edfc58afc730a671a63fedc9
 }
 
 /**
@@ -331,38 +219,38 @@ uint32_t getMinimum(uint32_t *a, uint32_t n)
 	uint32_t i;
 	uint32_t min_ind1 = 0;
 	uint32_t min_err = a[min_ind1];
-//	uint32_t min_err_tot = 0;
+	//	uint32_t min_err_tot = 0;
 	for (i = 1; i < n; i++) {
 		if (a[i] <= min_err) {
 			min_ind1 = i;
 			min_err = a[i];
-//			min_err_tot += min_err;
+			//			min_err_tot += min_err;
 		}
 	}
-return min_ind1;
+	return min_ind1;
 
-//	uint32_t min_ind2 = 0;
-//	min_err = a[min_ind2];
-////	uint32_t min_err_tot = 0;
-//	for (i = n; i > 1; i--) {
-//		if (a[i] <= min_err) {
-//			min_ind2 = i;
-//			min_err = a[i];
-////			min_err_tot += min_err;
-//		}
-//	}
+	//	uint32_t min_ind2 = 0;
+	//	min_err = a[min_ind2];
+	////	uint32_t min_err_tot = 0;
+	//	for (i = n; i > 1; i--) {
+	//		if (a[i] <= min_err) {
+	//			min_ind2 = i;
+	//			min_err = a[i];
+	////			min_err_tot += min_err;
+	//		}
+	//	}
 
 
-//	//*min_error = min_err_tot;
-//	if(min_ind1 == min_ind2)
-//	{
-//	return min_ind1;
-//	}
-//	else
-//	{
-//		printf("ind1: %d, ind2: %d, min_err1: %d, min_err2: %d\n",min_ind1,min_ind2,a[min_ind1],a[min_ind2]);
-//		return 999;
-//	}
+	//	//*min_error = min_err_tot;
+	//	if(min_ind1 == min_ind2)
+	//	{
+	//	return min_ind1;
+	//	}
+	//	else
+	//	{
+	//		printf("ind1: %d, ind2: %d, min_err1: %d, min_err2: %d\n",min_ind1,min_ind2,a[min_ind1],a[min_ind2]);
+	//		return 999;
+	//	}
 }
 
 
@@ -482,8 +370,6 @@ void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 		float *divergence, int32_t *flow, uint32_t size, uint32_t border,
 		uint16_t RES)
 {
-<<<<<<< HEAD
-
 	int32_t x;
 
 	//	float count = 0;
@@ -680,47 +566,6 @@ void line_fit_RANSAC(int32_t *displacement, float *divergence, int32_t *flow,
 		*divergence = 0;
 		*flow = 0;
 	}
-
-=======
-  int32_t x;
-
-  int32_t count = 0;
-  int32_t sumY = 0;
-  int32_t sumX = 0;
-  int32_t sumX2 = 0;
-  int32_t sumXY = 0;
-  int32_t xMean = 0;
-  int32_t yMean = 0;
-  int32_t divergence_int = 0;
-  int32_t border_int = (int32_t)border;
-  int32_t size_int = (int32_t)size;
-  uint32_t total_error = 0;
-
-  *divergence = 0;
-  *flow = 0;
-
-  // compute fixed sums
-  int32_t xend = size_int - border_int - 1;
-  sumX = xend * (xend + 1) / 2 - border_int * (border_int + 1) / 2 + border_int;
-  sumX2 = xend * (xend + 1) * (2 * xend + 1) / 6 - border_int * (border_int + 1) * (2 * border_int + 1) / 6 + border_int*border_int;
-  xMean = (size_int - 1) / 2;
-  count = size_int - 2 * border_int;
-
-  for (x = border_int; x < size - border_int; x++) {
-    sumY += displacement[x];
-    sumXY += x * displacement[x];
-  }
-
-  yMean = RES * sumY / count;
-
-  divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
-  *divergence = divergence_int;
-  *flow = yMean - *divergence * xMean;  // compute b (or y) intercept of line ax + b
-
-  for (x = border_int; x < size - border_int; x++) {
-    total_error += abs(RES * displacement[x] - divergence_int * x + yMean);
-  }
->>>>>>> 124fa3267def5384edfc58afc730a671a63fedc9
 }
 
 /**

@@ -996,9 +996,6 @@ void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_
 	static uint8_t wait_filter_counter =
 			0; // When starting up the opticalflow module, or switching between methods, wait for a bit to prevent bias
 
-  static uint8_t wait_filter_counter =
-    0; // When starting up the opticalflow module, or switching between methods, wait for a bit to prevent bias
-
 	if (opticflow->kalman_filter == true) {
 		if (opticflow->just_switched_method == true) {
 			wait_filter_counter = 0;
