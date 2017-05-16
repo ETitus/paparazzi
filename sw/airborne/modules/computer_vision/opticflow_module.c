@@ -81,9 +81,9 @@ static pthread_mutex_t opticflow_mutex;            ///< Mutex lock fo thread saf
 struct image_t *opticflow_module_calc(struct image_t *img);     ///< The main optical flow calculation thread
 static void opticflow_agl_cb(uint8_t sender_id, float distance);    ///< Callback function of the ground altitude
 static void opticflow_imu_accel_cb(uint8_t sender_id, uint32_t stamp,
-		struct Int32Vect3 *accel); ///< Callback function of the IMU's accelerometers
+                                   struct Int32Vect3 *accel); ///< Callback function of the IMU's accelerometers
 static void opticflow_body_to_imu_cb(uint8_t sender_id,
-		struct FloatQuat *q_b2i_f); ///< Callback function of imu to body
+                                     struct FloatQuat *q_b2i_f); ///< Callback function of imu to body
 
 #if PERIODIC_TELEMETRY
 #include "subsystems/datalink/telemetry.h"

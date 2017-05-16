@@ -370,8 +370,8 @@ void image_subpixel_window(struct image_t *input, struct image_t *output, struct
   // Calculate the window size
   uint16_t half_window = output->w / 2;
 
-  uint32_t subpixel_w = (input->w - 2) * subpixel_factor;
-  uint32_t subpixel_h = (input->h - 2) * subpixel_factor;
+  uint32_t subpixel_w = (input->w -2) * subpixel_factor;
+  uint32_t subpixel_h = (input->h -2) * subpixel_factor;
 
   // Go through the whole window size in normal coordinates
   for (uint16_t i = 0; i < output->w; i++) {
