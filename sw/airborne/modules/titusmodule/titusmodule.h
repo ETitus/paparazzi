@@ -36,10 +36,10 @@ extern void titusmodule_start(void);
 extern void titusmodule_periodic(void);
 extern void titusmodule_stop(void);
 
-// Guidance own=MODULE, else
-// Without optitrack set to: GUIDANCE_*V/H*_GUIDANCE_H_MODE_ATTITUDE
-// With optitrack set to: GUIDANCE_*V/H*_GUIDANCE_H_MODE_HOVER
-#define GUIDANCE_V_MODE_MODULE_SETTING GUIDANCE_V_MODE_MODULE
+// Guidance own =            MODULE
+// Without optitrack set to: ATTITUDE
+// With optitrack set to:    HOVER
+#define GUIDANCE_V_MODE_MODULE_SETTING GUIDANCE_V_MODE_HOVER
 #define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_MODULE
 
 // Implement own Horizontal loops
@@ -54,15 +54,23 @@ extern void guidance_v_module_enter(void);
 extern void guidance_v_module_run(bool in_flight);
 
 // Settings Variables
-float pused2;
+bool batsize;
+float magicfactorX;
+float magicfactorY;
+bool oscphi;
+bool osctheta;
 
 struct OpticalFlowTitus {
 	float lp_factor;              ///< low-pass factor in [0,1], with 0 purely using the current measurement
 	float divergence_setpoint;    ///< setpoint for constant divergence approach
+	float ventralflow_setpoint;    ///< setpoint for constant ventral flow approach
 	float nominal_thrust;         ///< nominal thrust around which the PID-control operates
 	float cov_set_point;          ///< for adaptive gain control, setpoint of the covariance (oscillations)
 	int delay_steps;              ///< number of delay steps for div past
-	float sum_err;                ///< integration of the error for I-gain
+
+	float sum_errX;                ///< integration of the error for I-gain in X axis
+	float sum_errY;                ///< integration of the error for I-gain in Y axis
+	float sum_errZ;                ///< integration of the error for I-gain in Z axis
 
 //	float cov_limit;              ///< for fixed gain control, what is the cov limit triggering the landing
 //	float pgain_adaptive;         ///< P-gain for adaptive gain control

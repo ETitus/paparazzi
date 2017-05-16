@@ -194,6 +194,7 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 	}
 	// TODO: replace with arm offset subtract
 	for (x = border[0]; x < border[1]; x++) {
+		//			for (x = border[1]; x > border[0]; x--) {
 		displacement[x] = 0;
 		if (!SHIFT_TOO_FAR) {
 			for (c = -D; c <= D; c++) {
@@ -217,18 +218,40 @@ void calculate_edge_displacement(int32_t *edge_histogram, int32_t *edge_histogra
 uint32_t getMinimum(uint32_t *a, uint32_t n)
 {
 	uint32_t i;
-	uint32_t min_ind = 0;
-	uint32_t min_err = a[min_ind];
-	uint32_t min_err_tot = 0;
+	uint32_t min_ind1 = 0;
+	uint32_t min_err = a[min_ind1];
+//	uint32_t min_err_tot = 0;
 	for (i = 1; i < n; i++) {
 		if (a[i] <= min_err) {
-			min_ind = i;
+			min_ind1 = i;
 			min_err = a[i];
-			min_err_tot += min_err;
+//			min_err_tot += min_err;
 		}
 	}
-	//*min_error = min_err_tot;
-	return min_ind;
+return min_ind1;
+
+//	uint32_t min_ind2 = 0;
+//	min_err = a[min_ind2];
+////	uint32_t min_err_tot = 0;
+//	for (i = n; i > 1; i--) {
+//		if (a[i] <= min_err) {
+//			min_ind2 = i;
+//			min_err = a[i];
+////			min_err_tot += min_err;
+//		}
+//	}
+
+
+//	//*min_error = min_err_tot;
+//	if(min_ind1 == min_ind2)
+//	{
+//	return min_ind1;
+//	}
+//	else
+//	{
+//		printf("ind1: %d, ind2: %d, min_err1: %d, min_err2: %d\n",min_ind1,min_ind2,a[min_ind1],a[min_ind2]);
+//		return 999;
+//	}
 }
 
 
@@ -246,22 +269,23 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 {
 	int32_t x;
 
-	//	int32_t count = 0;
-	//	int32_t sumY = 0;
-	//	int32_t sumX = 0;
-	//	int32_t sumX2 = 0;
-	//	int32_t sumXY = 0;
-	//	int32_t xMean = 0;
-	//	int32_t yMean = 0;
-	float count = 0;
-	float sumY = 0;
-	float sumX = 0;
-	float sumX2 = 0;
-	float sumXY = 0;
-	float xMean = 0;
-	float yMean = 0;
-	//	int32_t divergence_int = 0;
-	float divergence_float = 0;
+	int32_t count = 0;
+	int32_t sumY = 0;
+	int32_t sumX = 0;
+	int32_t sumX2 = 0;
+	int32_t sumXY = 0;
+	int32_t xMean = 0;
+	int32_t yMean = 0;
+	//	float count = 0;
+	//	float sumY = 0;
+	//	float sumX = 0;
+	//	float sumX2 = 0;
+	//	float sumXY = 0;
+	//	float xMean = 0;
+	//	float yMean = 0;
+	int32_t divergence_int = 0;
+	//	float divergence_float = 0;
+
 	int32_t border_int = (int32_t)border;
 	int32_t size_int = (int32_t)size;
 	uint32_t total_error = 0;
@@ -283,34 +307,52 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 
 	yMean = RES * sumY / count;
 
-	//	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
-	divergence_float = (float) ( (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );    // compute slope of line ax + b
+	divergence_int = (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean);    // compute slope of line ax + b
+	//	divergence_float = (float) ( (RES * sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );    // compute slope of line ax + b
 
-
-	//	*divergence = divergence_int;
-	*divergence = divergence_float;
+	*divergence = divergence_int;
+	//	*divergence = divergence_float;
 	*flow = (int32_t)(yMean - *divergence * xMean);  // compute b (or y) intercept of line ax + b
+	//	*flow = (float)(yMean - *divergence * xMean);  // compute b (or y) intercept of line ax + b
 
 	for (x = border_int; x < size - border_int; x++) {
-		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
+		//		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
+		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_int * x + yMean));
 	}
+	//		if(size==320)
+	//		{
+	//			printf("Regular \n");
+	//
+	//			printf("sumY: %d \n",sumY);
+	//
+	//			printf("RES: %d \n",RES);
+	//			printf("sumXY: %d \n",sumXY);
+	//			printf("sumX: %d \n",sumX);
+	//			printf("yMean: %d \n",yMean);
+	//			printf("sumX2: %d \n",sumX2);
+	//			printf("xMean: %d \n",xMean);
+	//
+	//			printf("divergence_int: %d \n",divergence_int);
+	//			printf("flow: %d \n",(yMean-divergence_int*xMean));
+	//			printf("total_error: %d \n \n",total_error);
+	//		}
+
 	//	if(size==320)
 	//	{
 	//		printf("Regular \n");
 	//
-	//		printf(" sumY: %f \n",sumY);
+	//		printf("sumY: %f \n",sumY);
 	//
-	//		printf(" RES: %d \n",RES);
-	//		printf(" sumXY: %f \n",sumXY);
-	//		printf(" sumX: %f \n",sumX);
-	//		printf(" yMean: %f \n",yMean);
-	//		printf(" sumX2: %f \n",sumX2);
-	//		printf(" xMean: %f \n",xMean);
+	//		printf("RES: %d \n",RES);
+	//		printf("sumXY: %f \n",sumXY);
+	//		printf("sumX: %f \n",sumX);
+	//		printf("yMean: %f \n",yMean);
+	//		printf("sumX2: %f \n",sumX2);
+	//		printf("xMean: %f \n",xMean);
 	//
-	//		printf(" divergence_int: %d \n",divergence_int);
-	//		printf(" divergence_float: %f \n",divergence_float);
-	//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
-	//		printf(" total_error: %d \n \n",total_error);
+	//		printf("divergence_float: %f \n",divergence_float);
+	//		printf("flow: %f \n",(yMean-divergence_float*xMean));
+	//		printf("total_error: %d \n \n",total_error);
 	//	}
 }
 
@@ -332,25 +374,26 @@ void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 
 	int32_t x;
 
-	float count = 0;
-	float sumY = 0;
-	float sumX = 0;
-	float sumX2 = 0;
-	float sumXY = 0;
-
-	float xMean = 0;
-	float yMean = 0;
-
-	//	int32_t count = 0;
-	//	int32_t sumY = 0;
-	//	int32_t sumX = 0;
-	//	int32_t sumX2 = 0;
-	//	int32_t sumXY = 0;
+	//	float count = 0;
+	//	float sumY = 0;
+	//	float sumX = 0;
+	//	float sumX2 = 0;
+	//	float sumXY = 0;
 	//
-	//	int32_t xMean = 0;
-	//	int32_t yMean = 0;
-	//	int32_t divergence_int = 0;
-	float divergence_float = 0;
+	//	float xMean = 0;
+	//	float yMean = 0;
+
+	int32_t count = 0;
+	int32_t sumY = 0;
+	int32_t sumX = 0;
+	int32_t sumX2 = 0;
+	int32_t sumXY = 0;
+
+	int32_t xMean = 0;
+	int32_t yMean = 0;
+	int32_t divergence_int = 0;
+	//	float divergence_float = 0;
+
 	int32_t border_int = (int32_t) border;
 	int32_t size_int = (int32_t) size;
 	uint32_t total_error = 0;
@@ -378,41 +421,155 @@ void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 	yMean = sumY / count;
 
 	if ((sumX2 - sumX * xMean) != 0) { // preven seg fault
-		//		divergence_int = (sumXY - sumX * yMean) / (sumX2 - sumX * xMean);  // compute slope of line ax + b
-		divergence_float = (float) ((sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );  // compute slope of line ax + b
+		divergence_int = (sumXY - sumX * yMean) / (sumX2 - sumX * xMean);  // compute slope of line ax + b
+		//		divergence_float = (float) ((sumXY - sumX * yMean) / (sumX2 - sumX * xMean) );  // compute slope of line ax + b
 
-		//		*divergence = divergence_int;
-		*divergence = divergence_float;
+		*divergence = divergence_int;
+		//		*divergence = divergence_float;
 	}
 
-	*flow = (int32_t)(yMean - divergence_float * xMean); // compute b (or y) intercept of line ax + b
+	*flow = (int32_t)(yMean - *divergence * xMean); // compute b (or y) intercept of line ax + b
+	//	*flow = (float)(yMean - *divergence * xMean); // compute b (or y) intercept of line ax + b
 
 
 	for (x = border_int; x < size_int - border_int; x++) {
-		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
+		//				total_error += (uint32_t)(abs(RES * displacement[x] - divergence_float * x + yMean));
+		total_error += (uint32_t)(abs(RES * displacement[x] - divergence_int * x + yMean));
 	}
 	//	if(size==320)
 	//	{
 	//		printf("Weighted \n");
 	//
-	//		printf(" sumY: %f \n",sumY);
+	//		printf("sumY: %d \n",sumY);
 	//
-	//		printf(" RES: %d \n",RES);
-	//		printf(" sumXY: %f \n",sumXY);
-	//		printf(" sumX: %f \n",sumX);
-	//		printf(" yMean: %f \n",yMean);
-	//		printf(" sumX2: %f \n",sumX2);
-	//		printf(" xMean: %f \n",xMean);
+	//		printf("RES: %d \n",RES);
+	//		printf("sumXY: %d \n",sumXY);
+	//		printf("sumX: %d \n",sumX);
+	//		printf("yMean: %d \n",yMean);
+	//		printf("sumX2: %d \n",sumX2);
+	//		printf("xMean: %d \n",xMean);
 	//
 	//
-	//		printf(" divergence_int: %d \n",divergence_int);
-	//		printf(" divergence_float: %f \n",divergence_float);
-	//		printf(" flow: %f \n",(yMean-divergence_float*xMean));
-	//		printf(" total_error: %d \n \n",total_error);
-	//
+	//		printf("divergence_int: %d \n",divergence_int);
+	//		printf("flow: %d \n",(yMean-divergence_int*xMean));
+	//		printf("total_error: %d \n \n",total_error);
 	//	}
+	//		if(size==320)
+	//		{
+	//			printf("Weighted \n");
+	//
+	//			printf("sumY: %f \n",sumY);
+	//
+	//			printf("RES: %d \n",RES);
+	//			printf("sumXY: %f \n",sumXY);
+	//			printf("sumX: %f \n",sumX);
+	//			printf("yMean: %f \n",yMean);
+	//			printf("sumX2: %f \n",sumX2);
+	//			printf("xMean: %f \n",xMean);
+	//
+	//			printf("divergence_float: %f \n",divergence_float);
+	//			printf("flow: %f \n",(yMean-divergence_float*xMean));
+	//			printf("total_error: %d \n \n",total_error);
+	//		}
 }
+/* weighted_line_fit: fits a line using least squares to the histogram disparity map, excluding the areas that have faulty distance measurements
+ * \param displacement is an array that contains the pixel displacements of the compared edgehistograms
+ * \param divergence is slope of the optical flow field
+ * \param slope is intercept of the optical flow (calculated from middle from image)
+ * \param faulty_distance is an array with binary values, to indicate where the distance measure was faulty and not (those coordinates will not be included in the line fit)
+ * \param size is the  size of stereo_distance_per_column
+ * \param border is the search window + search distance used in blockmatching
+ * \param RES is resolution used to calculate the line fit (int based math)
+ *
+ * TODO: Make the inlier_threshold and inlier ratio adaptable
+ * */
+void line_fit_RANSAC(int32_t *displacement, float *divergence, int32_t *flow,
+		uint16_t size, uint32_t border, int32_t RES)
+{
 
+	int16_t inlier_threshold = 2000;
+	int16_t inlier_ratio = 40;
+	int16_t num_inliers_wanted = (int16_t)(inlier_ratio
+			* (size - (int32_t) border * 2) / 100);
+	int16_t num_inliers = 0;
+	//Fit a linear line with RANSAC (from Guido's code)
+	int32_t ransac_iter = 50;
+	int32_t it;
+	uint32_t ind1, ind2, tmp, entry;
+	int32_t total_error = 0, best_ind = 0;
+	int32_t error;
+	int32_t dx, dflow, predicted_flow;
+	// flow = a * x + b
+	int32_t a[ransac_iter];
+	int32_t b[ransac_iter];
+	uint32_t errors[ransac_iter];
+
+	uint16_t  counter_pass_check = 0;
+
+	uint16_t entries = size - 2 * border;
+
+	for (it = 0; it < ransac_iter; it++) {
+		ind1 = rand() % entries + border;
+		ind2 = rand() % entries + border;
+
+		while (ind1 == ind2) {
+			ind2 = rand() % entries + border;
+		}
+		// TODO: is this really necessary?
+		if (ind1 > ind2) {
+			tmp = ind2;
+			ind2 = ind1;
+			ind1 = tmp;
+		}
+
+		dx = ind2 - ind1;   // never zero
+		dflow = displacement[ind2] - displacement[ind1];
+
+		// Fit line with two points
+		a[it] = RES * dflow / dx;
+		b[it] = RES * (int32_t)displacement[ind1] - (a[it] * ind1);
+		// evaluate fit:
+
+		total_error = 0;
+		for (entry = border; entry < size - border; entry++) {
+			predicted_flow = a[it] * entry + b[it];
+			error = abs((RES * (int32_t)displacement[entry] - predicted_flow));
+
+			if ((int32_t) error < inlier_threshold * RES) {
+				num_inliers++;
+				total_error += (error / (RES));
+			}
+
+			//total_error += ipow(RES*displacement[entry] - predicted_flow,2);
+		}
+
+
+		if ((num_inliers > num_inliers_wanted)) {
+			errors[it] = total_error;
+			counter_pass_check++;
+
+		} else {
+
+			errors[it] = UINT32_MAX;
+		}
+
+		num_inliers = 0;
+		total_error = 0;
+	}
+
+	// select best fit:
+	uint32_t min_error = 0;
+	best_ind = getMinimum2(errors, ransac_iter, &min_error);
+
+	if (counter_pass_check > 0) {
+		*divergence = a[best_ind];
+		*flow = b[best_ind];
+	} else {
+		*divergence = 0;
+		*flow = 0;
+	}
+
+}
 
 /**
  * Draws edgehistogram, displacement and linefit directly on the image for debugging (only for edgeflow in horizontal direction!!)
@@ -479,4 +636,24 @@ uint32_t getAmountPeaks(int32_t *edgehist, uint32_t thres, int32_t size)
 		}
 	}
 	return amountPeaks;
+}
+/* getMinimum2: finds minimum value in array
+ * \param a is an array containing the values
+ * \param n is size of the array
+ * \param min_error is the minimum value of array
+ * \return min_ind is the index of the minimum value located on the array
+ *
+ * */
+uint32_t getMinimum2(uint32_t *a, uint32_t n, uint32_t *min_error)
+{
+	uint32_t i;
+	uint32_t min_ind = 0;
+	*min_error = a[min_ind];
+	for (i = 1; i < n; i++) {
+		if (a[i] < *min_error) {
+			min_ind = i;
+			*min_error = a[i];
+		}
+	}
+	return min_ind;
 }

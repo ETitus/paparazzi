@@ -18,7 +18,11 @@
 	<settings>
 		<dl_settings>
 			<dl_settings name="TitusModule">
-				<dl_setting var="pused2" min="0" step="1" max="100" module="titusmodule/titusmodule" shortname="Control Gain"/>
+				<dl_setting var="batsize" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Small|Large" shortname="Battery Size"/>
+				<dl_setting var="magicfactorX" min="0" step="0.001" max="10" module="titusmodule/titusmodule" shortname="magicfactorX"/>
+				<dl_setting var="magicfactorY" min="0" step="0.001" max="10" module="titusmodule/titusmodule" shortname="magicfactorY"/>
+				<dl_setting var="oscphi" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Off|On" shortname="oscphi"/>
+				<dl_setting var="osctheta" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Off|On" shortname="osctheta"/>
 			</dl_settings>
 		</dl_settings>
 	</settings>

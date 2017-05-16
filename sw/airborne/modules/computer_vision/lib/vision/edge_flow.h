@@ -74,7 +74,7 @@ struct edgeflow_displacement_t {
 };
 
 struct edge_flow_t {
-  int32_t flow_x;
+	int32_t flow_x;
   float div_x;
   int32_t flow_y;
   float div_y;
@@ -101,7 +101,9 @@ void line_fit(int32_t *displacement, float *divergence, int32_t *flow, uint32_t 
 void weighted_line_fit(int32_t *displacement, uint8_t *faulty_distance,
 		float *divergence, int32_t *flow, uint32_t size, uint32_t border,
                            uint16_t RES);
+void line_fit_RANSAC(int32_t *displacement, float *divergence, int32_t *flow,
+                     uint16_t size, uint32_t border, int32_t RES);
 uint32_t getAmountPeaks(int32_t *edgehist, uint32_t median, int32_t size);
-
+uint32_t getMinimum2(uint32_t *a, uint32_t n, uint32_t *min_error);
 
 #endif /* EDGE_FLOW_H_ */

@@ -98,7 +98,7 @@ PRINT_CONFIG_VAR(OPTICFLOW_WINDOW_SIZE)
 PRINT_CONFIG_VAR(OPTICFLOW_SEARCH_DISTANCE)
 
 #ifndef OPTICFLOW_RESOLUTION_FACTOR
-#define OPTICFLOW_RESOLUTION_FACTOR 100
+#define OPTICFLOW_RESOLUTION_FACTOR 10000
 #endif
 PRINT_CONFIG_VAR(OPTICFLOW_RESOLUTION_FACTOR)
 
@@ -539,8 +539,8 @@ void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *
 	edgeflow.flow_x = -1 * edgeflow.flow_x;
 	edgeflow.flow_y = -1 * edgeflow.flow_y;
 
-	result->flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
-	result->flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
+	edgeflow.flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
+	edgeflow.flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
 
 	result->flow_x = (int16_t)edgeflow.flow_x / RES;
 	result->flow_y = (int16_t)edgeflow.flow_y / RES;
@@ -671,7 +671,6 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	calculate_edge_histogram(img, edge_hist_x, 'x', 0);
 	calculate_edge_histogram(img, edge_hist_y, 'y', 0);
 
-
 	// Copy frame time and angles of image to calculated edge histogram
 	edge_hist[current_frame_nr].frame_time = img->ts;
 	edge_hist[current_frame_nr].rates = state->rates;
@@ -718,34 +717,31 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	int32_t *snapshot_edge_histogram_x = snapshot.x;
 	int32_t *snapshot_edge_histogram_y = snapshot.y;
 
-
-	//	struct timeval before;
-	//	struct timeval after;
-	//
-	//	gettimeofday(&before,NULL);
-	//
-	//for(int i = 0;i<500;i++)
-	//{
-
 	// Estimate pixel wise displacement of the edge histograms for x and y direction WRT snapshot
 	calculate_edge_displacement(edge_hist_x, snapshot_edge_histogram_x,
 			displacement_snap.x, img->w,
 			window_size, disp_range,  der_shift_x);
-	//
-	//	for(int x=0; x<img->w;x++)
-	//	{
-	//		printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
-	//	}
-	//	printf("\n");
+
+	// Remove outliers
+	uint8_t faulty_distance[320];
+	memset(faulty_distance, 0, sizeof(uint8_t)*img->w);
+	for(int x=0; x<img->w;x++)
+	{
+		if(*(displacement_snap.x+x) == (999-disp_range))
+		{
+			faulty_distance[x] = 1;
+		}
+	}
+
+				for(int x=0; x<img->w;x++)
+				{
+					printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
+				}
+				printf("\n");
 
 	calculate_edge_displacement(edge_hist_y, snapshot_edge_histogram_y,
 			displacement_snap.y, img->h,
 			window_size, disp_range, der_shift_y);
-	//
-	//
-	//}
-	//	gettimeofday(&after,NULL);
-	//	printf("elapsed time for xy displacement: %f s \n",((float)timeval_diff(&before, &after)/1000000.0));
 
 	// Fit a line on the pixel displacement to estimate
 	// the global pixel flow and divergence (RES is resolution)
@@ -754,9 +750,18 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 			&edgeflow_snap.flow_x, img->w,
 			window_size + disp_range, RES);
 
+	printf("normal: flow: %d \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+	//	printf("flow: %f \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+
+
+	line_fit_RANSAC(displacement_snap.x, &edgeflow_snap.div_x, &edgeflow_snap.flow_x,
+			img->w,window_size + disp_range,RES);
+
+	printf("RANSAC: flow: %d \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+	//	printf("flow: %f \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+
 	//	// manually remove outliers
-	//	uint8_t faulty_distance[320];
-	//	memset(faulty_distance, 0, sizeof(uint8_t)*img->w);
+
 	//	faulty_distance[107]=1;
 	//	faulty_distance[108]=1;
 	//	faulty_distance[111]=1;
@@ -780,9 +785,13 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	//	faulty_distance[238]=1;
 	//	faulty_distance[239]=1;
 	//	faulty_distance[240]=1;
-	//
-	//	weighted_line_fit(displacement_snap.x, faulty_distance,
-	//			&edgeflow_snap.div_x, &edgeflow_snap.flow_x, img->w, window_size + disp_range,RES);
+
+	weighted_line_fit(displacement_snap.x, faulty_distance,
+			&edgeflow_snap.div_x, &edgeflow_snap.flow_x, img->w,
+			window_size + disp_range,RES);
+
+	printf("Weighted flow: %d \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+	//	printf("flow: %f \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
 
 	line_fit(displacement_snap.y, &edgeflow_snap.div_y,
 			&edgeflow_snap.flow_y, img->h,
@@ -796,11 +805,11 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	 * the same subpixel factor and -1 to make it on par with
 	 * the LK algorithm of t opticalflow_calculator.c
 	 * */
-	edgeflow_snap.flow_x = -1 * edgeflow_snap.flow_x;
-	edgeflow_snap.flow_y = -1 * edgeflow_snap.flow_y;
+	edgeflow_snap.flow_x = -1 * edgeflow_snap.flow_x / RES;
+	edgeflow_snap.flow_y = -1 * edgeflow_snap.flow_y / RES;
 
-	result->flow_x_snap = (int16_t)edgeflow_snap.flow_x; // /previous_frame_offset[0];
-	result->flow_y_snap = (int16_t)edgeflow_snap.flow_y; // /previous_frame_offset[1];
+	result->flow_x_snap = (int16_t)edgeflow_snap.flow_x;
+	result->flow_y_snap = (int16_t)edgeflow_snap.flow_y;
 
 	result->divergence_snap = (float)edgeflow_snap.div_x / RES;   /////////// flow_x should be replaced by div_x
 
@@ -811,7 +820,7 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	result->distance_x_snap = dis_x;
 	result->distance_y_snap = dis_y;
 
-	//	draw_edgeflow_img(img, edgeflow_snap, snapshot_edge_histogram_x, edge_hist_x);
+	//		draw_edgeflow_img(img, edgeflow_snap, snapshot_edge_histogram_x, edge_hist_x);
 
 	//	struct point_t point1;
 	//	struct point_t point2;
@@ -876,8 +885,11 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	 * the same subpixel factor and -1 to make it on par with
 	 * the LK algorithm of t opticalflow_calculator.c
 	 * */
-	edgeflow.flow_x = -1 * edgeflow.flow_x;
-	edgeflow.flow_y = -1 * edgeflow.flow_y;
+	edgeflow.flow_x = -1 * edgeflow.flow_x / RES;
+	edgeflow.flow_y = -1 * edgeflow.flow_y / RES;
+
+	result->flow_x = edgeflow.flow_x;
+	result->flow_y = edgeflow.flow_y;
 
 	result->flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
 	result->flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
@@ -963,8 +975,8 @@ void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_
 	if (opticflow->method == 0) {
 		calc_fast9_lukas_kanade(opticflow, state, img, result);
 	} else if (opticflow->method == 1) {
-		//				calc_edgeflow_tot(opticflow, state, img, result);
-		calc_edgeflow_titus(opticflow, state, img, result);
+		calc_edgeflow_tot(opticflow, state, img, result);
+		//		calc_edgeflow_titus(opticflow, state, img, result);
 	}
 
 	/* Rotate velocities from camera frame coordinates to body coordinates for control

@@ -2268,15 +2268,35 @@
 		<message name="TITUSMODULE" id="248">
 			<field name="divergence" type="float"> vertical velocity / height from
 				optitrack (unit = 1/sec)</field>
-			<field name="divergence_vision" type="float"> vertical velocity /
-				height from vision (unit = 1/sec)</field>
-			<field name="cov_div" type="float"> covariance of divergence and
-				thrust, or past divergence depending on the mode (-)</field>
+			<field name="ventralX" type="int16"> horizontal velocity in X (px/s)</field>
+			<field name="ventralY" type="int16"> horizontal velocity in Y (px/s)</field>
+			<field name="divergence_vision" type="float"> vertical velocity /height
+				from vision (unit = 1/sec)</field>
+			<field name="flowX" type="int16"> filtered flow in X</field>
+			<field name="flowY" type="int16"> filtered flow in X</field>
+			<field name="cov_divX" type="float"> covariance of Ventral flow in X
+				and past ventral flow in X</field>
+			<field name="cov_divY" type="float"> covariance of Ventral flow in Y
+				and past ventral flow in Y</field>
+			<field name="cov_divZ" type="float"> covariance of divergence and past
+				divergence</field>
 			<field name="sonar" type="float"> measurement from the sonar (mm)</field>
-			<field name="err" type="float"> Error in divergence</field>
-			<field name="pused" type="float"> Gain used in the feedback</field>
-			<field name="sum_err" type="float"> Sum of errors</field>
+			<field name="errX" type="float"> Error in flow X</field>
+			<field name="errY" type="float"> Error in flow Y</field>
+			<field name="errZ" type="float"> Error in divergence</field>
+			<field name="pusedX" type="float"> Gain used in the X feedback</field>
+			<field name="pusedY" type="float"> Gain used in the Y feedback</field>
+			<field name="pusedZ" type="float"> Gain used in the Z feedback</field>
+			<field name="sum_errX" type="float"> Sum of errors in X</field>
+			<field name="sum_errY" type="float"> Sum of errors in Y</field>
+			<field name="sum_errZ" type="float"> Sum of errors in Z</field>
 			<field name="thrust" type="uint32"> The thrust</field>
+			<field name="phi_des" type="int32"> The desired phi angle in ???</field>
+			<field name="theta_des" type="int32"> The desired theta angle in ???</field>
+			<field name="test_sp_eu_phi" type="int32"> The send phi angle in ???</field>
+			<field name="test_sp_eu_theta" type="int32"> The send theta angle in ???</field>
+			<field name="test_sp_eu_psi" type="int32"> The desired psi angle in ???</field>
+
 		</message>
 
 		<message name="SNAPSHOT" id="249">
