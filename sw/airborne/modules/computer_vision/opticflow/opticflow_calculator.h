@@ -73,6 +73,9 @@ struct opticflow_t {
   bool snapshot; 					///< used to make a snapshot
 };
 
+// Use it to take and save pictures
+bool takepicture;
+
 void opticflow_calc_init(struct opticflow_t *opticflow);
 void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
                           struct opticflow_result_t *result);

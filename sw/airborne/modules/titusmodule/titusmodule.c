@@ -110,7 +110,7 @@ static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct 
 static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct Int32Vect3 *accel);
 //static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag);
 static void titus_ctrl_gps_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, struct GpsState *gps_s);
-static void titus_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float dist);
+static void titus_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float divergence, float dist);
 static void titus_ctrl_velocity_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, float x, float y, float z, float noise);
 
 // Run & init functions
@@ -179,6 +179,8 @@ long previous_timeZ;
 
 
 float divergence;
+float size_divergence;
+float regular_divergence;
 float divergence_vision;
 float dtZ;
 float dtZ2;
@@ -233,7 +235,7 @@ bool oscillatingY;
 int32_t phi_des;
 int32_t theta_des;
 
-#define MAXBANK 5
+#define MAXBANK 25
 //// Rest  ///////////////////////////////////////////
 
 struct OpticalFlowTitus of_titusmodule;
@@ -244,9 +246,8 @@ struct LogState TitusLog;
 // sending the divergence message to the ground station:
 static void send_titusmodule(struct transport_tx *trans, struct link_device *dev)
 {
-	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence,&ventralX,&ventralY,&divergence_vision,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&TitusLog.distance,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi);
+	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence,&divergence_vision,&TitusLog.of_divergence,&TitusLog.of_size_divergence,&ventralX,&ventralY,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&TitusLog.distance,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi);
 }
-
 
 
 //////////////////////////////////////////// Logging Module ///////////////////////////////////
@@ -269,6 +270,7 @@ void titusmodule_init(void)
 	previous_message_nrXY = 0;
 	previous_message_nrZ  = 0;
 	of_titusmodule.cov_set_point = -0.025f;
+	ofmethode = OPTICFLOW_METHOD;
 
 	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_TITUSMODULE, send_titusmodule);
 }
@@ -277,99 +279,97 @@ void titusmodule_start(void)
 {
 	//	file_logger_start();
 
-	// save static image test
-
-	// Read images
-	struct image_t titus_img;
-	image_create(&titus_img,320,240,IMAGE_YUV422);
-
-	FILE *file;
-	unsigned long fileLen;
-	file = fopen("/data/video/2divpolice.yuv", "rb");
-	//Get file length
-	fseek(file, 0, SEEK_END);
-	fileLen=ftell(file);
-	fseek(file, 0, SEEK_SET);
-	//Read file contents into buffer
-	fread(titus_img.buf, fileLen, 1, file); // fileLen en 1 omdraaien?
-	fclose (file);
-
-	struct image_t titus_img2;
-	image_create(&titus_img2,320,240,IMAGE_YUV422);
-
-	FILE *file2;
-	unsigned long fileLen2;
-	file2 = fopen("/data/video/2divpolice2.yuv", "rb");
-	//Get file length
-	fseek(file2, 0, SEEK_END);
-	fileLen2=ftell(file2);
-	fseek(file2, 0, SEEK_SET);
-	//Read file contents into buffer
-	fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
-	fclose (file2);
-
-	// Only set 1 image time?
-	gettimeofday(&titus_img.ts, NULL);
-
-
-	// Set needed values
-	struct opticflow_t titus_opticflow;
-	struct opticflow_state_t titus_state;
-	struct opticflow_result_t titus_result;
-
-	/* Set the default values */
-	titus_opticflow.window_size = 10;
-	titus_opticflow.search_distance = 40;
-	titus_opticflow.derotation = 1;
-	titus_opticflow.just_switched_method = 1;
-	titus_opticflow.snapshot = 1;
-	titus_opticflow.subpixel_factor = 1;
-	titus_opticflow.resolution_factor = 10000;
-	FLOAT_RATES_ZERO(titus_state.rates);
-	titus_state.agl = 1;
-
-	// Initialize algorithm
-	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
-	titus_opticflow.just_switched_method = 0;
-
-	// Save first image
-	struct image_t img_jpeg_global;
-	image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
-	jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
-	FILE *fp = fopen("/data/video/titusimage.jpg", "wb");
-	if (fp == NULL) {
-	} else {
-		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
-		fclose(fp);
-	}
-
-	// re-read the second image
-	file2 = fopen("/data/video/2divpolice2.yuv", "rb");
-	//Get file length
-	fseek(file2, 0, SEEK_END);
-	fileLen2=ftell(file2);
-	fseek(file2, 0, SEEK_SET);
-	//Read file contents into buffer
-	fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
-	fclose (file2);
-
-	// Run algorithm
-	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
-
-
-	// Save second image
-	jpeg_encode_image(&titus_img2, &img_jpeg_global, 99, TRUE);
-	char filename[51];
-	sprintf(filename, "/data/video/titusimage_verschoven%2d.jpg", 40);
-	FILE *fp2 = fopen(filename, "w");
-	if (fp2 == NULL) {
-	} else {
-		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp2);
-		fclose(fp2);
-	}
-
-	// Backup from logging:
-	//		printf(" snapx: %d \n snapy: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap);
+	//	// save static image test
+	//
+	//	// Read images
+	//	struct image_t titus_img;
+	//	image_create(&titus_img,320,240,IMAGE_YUV422);
+	//
+	//	FILE *file;
+	//	unsigned long fileLen;
+	//	file = fopen("/data/video/di2.yuv", "rb");
+	//	//Get file length
+	//	fseek(file, 0, SEEK_END);
+	//	fileLen=ftell(file);
+	//	fseek(file, 0, SEEK_SET);
+	//	//Read file contents into buffer
+	//	fread(titus_img.buf, fileLen, 1, file); // fileLen en 1 omdraaien?
+	//	fclose (file);
+	//
+	//	struct image_t titus_img2;
+	//	image_create(&titus_img2,320,240,IMAGE_YUV422);
+	//
+	//	FILE *file2;
+	//	unsigned long fileLen2;
+	//	file2 = fopen("/data/video/di3.yuv", "rb");
+	//	//Get file length
+	//	fseek(file2, 0, SEEK_END);
+	//	fileLen2=ftell(file2);
+	//	fseek(file2, 0, SEEK_SET);
+	//	//Read file contents into buffer
+	//	fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
+	//	fclose (file2);
+	//
+	//	// Only set 1 image time?
+	//	gettimeofday(&titus_img.ts, NULL);
+	//
+	//
+	//	// Set needed values
+	//	struct opticflow_t titus_opticflow;
+	//	struct opticflow_state_t titus_state;
+	//	struct opticflow_result_t titus_result;
+	//
+	//	/* Set the default values */
+	//	titus_opticflow.window_size = 10;
+	//	titus_opticflow.search_distance = 40;
+	//	titus_opticflow.derotation = 1;
+	//	titus_opticflow.just_switched_method = 1;
+	//	titus_opticflow.snapshot = 1;
+	//	titus_opticflow.subpixel_factor = 1;
+	//	titus_opticflow.resolution_factor = 10000;
+	//	FLOAT_RATES_ZERO(titus_state.rates);
+	//	titus_state.agl = 1;
+	//
+	//	// Initialize algorithm
+	//	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img,&titus_result);
+	//	titus_opticflow.just_switched_method = 0;
+	//
+	//	// Save first image
+	//	struct image_t img_jpeg_global;
+	//	image_create(&img_jpeg_global, titus_img.w, titus_img.h, IMAGE_JPEG);
+	//	jpeg_encode_image(&titus_img, &img_jpeg_global, 99, TRUE);
+	//	FILE *fp = fopen("/data/video/di2.jpg", "wb");
+	//	if (fp == NULL) {
+	//	} else {
+	//		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
+	//		fclose(fp);
+	//	}
+	//
+	//	// re-read the second image
+	//	file2 = fopen("/data/video/di3.yuv", "rb");
+	//	//Get file length
+	//	fseek(file2, 0, SEEK_END);
+	//	fileLen2=ftell(file2);
+	//	fseek(file2, 0, SEEK_SET);
+	//	//Read file contents into buffer
+	//	fread(titus_img2.buf, fileLen2, 1, file2); // fileLen en 1 omdraaien?
+	//	fclose (file2);
+	//
+	//	// Run algorithm
+	//	calc_edgeflow_titus(&titus_opticflow,&titus_state,&titus_img2,&titus_result);
+	//
+	//
+	//	// Save second image
+	//	jpeg_encode_image(&titus_img2, &img_jpeg_global, 99, TRUE);
+	//	FILE *fp2 = fopen("/data/video/di3.jpg", "w");
+	//	if (fp2 == NULL) {
+	//	} else {
+	//		fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp2);
+	//		fclose(fp2);
+	//	}
+	//
+	//	// Backup from logging:
+	//	//		printf(" snapx: %d \n snapy: %d \n \n",titus_result.flow_x_snap,titus_result.flow_y_snap);
 
 
 
@@ -552,7 +552,7 @@ void h_ctrl_module_run(bool in_flight)
 		}
 		if(osctheta)
 		{
-			theta_des = Max(-MAXBANK,Min(magicfactorY * pusedX * errX,MAXBANK)); //+ of_titusmodule.igain * of_titusmodule.sum_err;
+			theta_des = Max(-MAXBANK,Min(magicfactorY * pusedY * errY,MAXBANK)); //+ of_titusmodule.igain * of_titusmodule.sum_err;
 		}
 		else
 		{
@@ -560,12 +560,10 @@ void h_ctrl_module_run(bool in_flight)
 		}
 
 		test_sp_eu.phi = BFP_OF_REAL(RadOfDeg(phi_des), INT32_ANGLE_FRAC);
-		test_sp_eu.theta = BFP_OF_REAL(RadOfDeg(Max(-MAXBANK,Min(theta_des,MAXBANK))), INT32_ANGLE_FRAC);
+		test_sp_eu.theta = BFP_OF_REAL(RadOfDeg(theta_des), INT32_ANGLE_FRAC);
 
 		// Log everything ////////////////////////////////////////////////////////////////////////
 
-		//		normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
-		//		thrust_history[ind_histXY % COV_WINDOW_SIZE] = normalized_thrust;
 		ventralX_history[ind_histXY % COV_WINDOW_SIZE] = ventralX;
 		ventralY_history[ind_histXY % COV_WINDOW_SIZE] = ventralY;
 
@@ -634,6 +632,15 @@ void v_ctrl_module_run(bool in_flight)
 	}
 	else
 	{
+		if(ofmethode)
+		{
+			divergence_vision = regular_divergence;
+		}
+		else
+		{
+			divergence_vision = size_divergence;
+		}
+
 		int32_t nominal_throttle = of_titusmodule.nominal_thrust * MAX_PPRZ;
 
 		// Manage time stuff ////////////////////////////////////////////////////////////
@@ -1107,7 +1114,7 @@ static void titus_ctrl_gps_cb(uint8_t sender_id, uint32_t stamp, struct GpsState
 	TitusLog.gps_stamp = stamp;
 	TitusLog.gps_gps_s = gps_s;
 }
-static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float dist)
+static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div,float regular_div, float dist)
 {
 	//	printf("OF updated \n");
 	TitusLog.of_stamp = stamp;
@@ -1117,10 +1124,14 @@ static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_
 	TitusLog.of_flow_der_y = flow_der_y;
 	TitusLog.of_quality = quality;
 	TitusLog.of_size_divergence = size_divergence;
+	TitusLog.of_divergence = divergence;
 
 	flowX = flow_x;
 	flowY = flow_y;
-	divergence_vision = size_divergence;
+
+	regular_divergence = regular_div;
+	size_divergence = size_div;
+
 	vision_message_nr++;
 	if (vision_message_nr > 10) { vision_message_nr = 0; }
 

@@ -51,6 +51,7 @@
 
 // whether to show the flow and corners:
 #define OPTICFLOW_SHOW_FLOW 0
+#define OPTICFLOW_SHOW_FLOW_TITUS 1
 #define OPTICFLOW_SHOW_CORNERS 0
 
 // What methods are run to determine divergence, lateral flow, etc.
@@ -228,6 +229,8 @@ void opticflow_calc_init(struct opticflow_t *opticflow)
 	opticflow->fast9_padding = OPTICFLOW_FAST9_PADDING;
 	opticflow->fast9_rsize = 512;
 	opticflow->fast9_ret_corners = malloc(sizeof(struct point_t) * opticflow->fast9_rsize);
+
+	takepicture = 0;
 }
 /**
  * Run the optical flow with fast9 and lukaskanade on a new image frame
@@ -724,22 +727,22 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 			displacement_snap.x, img->w,
 			window_size, disp_range,  der_shift_x);
 
-	// Remove outliers
+//	// Remove outliers
 	uint8_t faulty_distance[320];
 	memset(faulty_distance, 0, sizeof(uint8_t)*img->w);
+//	for(int x=0; x<img->w;x++)
+//	{
+//		if(*(displacement_snap.x+x) == (999-disp_range))
+//		{
+//			faulty_distance[x] = 1;
+//		}
+//	}
+
 	for(int x=0; x<img->w;x++)
 	{
-		if(*(displacement_snap.x+x) == (999-disp_range))
-		{
-			faulty_distance[x] = 1;
-		}
+		printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
 	}
-
-				for(int x=0; x<img->w;x++)
-				{
-					printf("Histogram[%d]: %d\n",x,*(displacement_snap.x+x));
-				}
-				printf("\n");
+	printf("\n");
 
 	calculate_edge_displacement(edge_hist_y, snapshot_edge_histogram_y,
 			displacement_snap.y, img->h,
@@ -756,10 +759,10 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	//	printf("flow: %f \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
 
 
-	line_fit_RANSAC(displacement_snap.x, &edgeflow_snap.div_x, &edgeflow_snap.flow_x,
-			img->w,window_size + disp_range,RES);
-
-	printf("RANSAC: flow: %d \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
+//	line_fit_RANSAC(displacement_snap.x, &edgeflow_snap.div_x, &edgeflow_snap.flow_x,
+//			img->w,window_size + disp_range,RES);
+//
+//	printf("RANSAC: flow: %d \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
 	//	printf("flow: %f \ndiv: %f \n \n",edgeflow_snap.flow_x,edgeflow_snap.div_x);
 
 	//	// manually remove outliers
@@ -787,6 +790,11 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	//	faulty_distance[238]=1;
 	//	faulty_distance[239]=1;
 	//	faulty_distance[240]=1;
+
+
+		faulty_distance[150]=1;
+		faulty_distance[151]=1;
+		faulty_distance[152]=1;
 
 	weighted_line_fit(displacement_snap.x, faulty_distance,
 			&edgeflow_snap.div_x, &edgeflow_snap.flow_x, img->w,
@@ -890,11 +898,11 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 	edgeflow.flow_x = -1 * edgeflow.flow_x / RES;
 	edgeflow.flow_y = -1 * edgeflow.flow_y / RES;
 
+	edgeflow.flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
+	edgeflow.flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
+
 	result->flow_x = edgeflow.flow_x;
 	result->flow_y = edgeflow.flow_y;
-
-	result->flow_x = (int16_t)edgeflow.flow_x / previous_frame_offset[0];
-	result->flow_y = (int16_t)edgeflow.flow_y / previous_frame_offset[1];
 
 	//Fill up the results optic flow to be on par with LK_fast9
 	result->flow_der_x =  result->flow_x;
@@ -939,7 +947,7 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 
 
 
-#if OPTICFLOW_SHOW_FLOW
+#if OPTICFLOW_SHOW_FLOW_TITUS
 	draw_edgeflow_img(img, edgeflow, prev_edge_histogram_x, edge_hist_x);
 #endif
 	// Increment and wrap current time frame
@@ -963,12 +971,32 @@ void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t
 void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
 		struct opticflow_result_t *result)
 {
+	static int8_t picturecount = 0;
+	static char filename[512];
+	if(takepicture)
+	{
+		takepicture = 0;
+		picturecount++;
+		// Save an image
+		struct image_t img_jpeg_global;
+		image_create(&img_jpeg_global, img->w, img->h, IMAGE_JPEG);
+		jpeg_encode_image(img, &img_jpeg_global, 99, TRUE);
+		sprintf(filename, "/data/video/droneimage%d.jpg",picturecount);
+		FILE *fp = fopen(filename, "wb");
+		if (fp == NULL) {
+		} else {
+			fwrite(img_jpeg_global.buf, sizeof(uint8_t), img_jpeg_global.buf_size, fp);
+			fclose(fp);
+		}
+	}
+
 	// A switch counter that checks in the loop if the current method is similar,
 	// to the previous (for reinitializing structs)
 	static int8_t switch_counter = -1;
 	if (switch_counter != opticflow->method) {
 		opticflow->just_switched_method = true;
 		switch_counter = opticflow->method;
+
 	} else {
 		opticflow->just_switched_method = false;
 	}

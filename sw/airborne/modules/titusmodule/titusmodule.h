@@ -54,6 +54,7 @@ extern void guidance_v_module_enter(void);
 extern void guidance_v_module_run(bool in_flight);
 
 // Settings Variables
+bool ofmethode;
 bool batsize;
 float magicfactorX;
 float magicfactorY;
@@ -101,6 +102,7 @@ struct LogState {
 	int16_t of_flow_der_y;
 	float of_quality;
 	float of_size_divergence;
+	float of_divergence;
 
 	// imu_gyro_int32
 	uint32_t gyro_stamp;
