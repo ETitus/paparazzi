@@ -37,7 +37,6 @@
 #include "state.h"
 #include "subsystems/radio_control.h"
 
-
 // debug
 #include <sys/time.h>
 
@@ -104,6 +103,8 @@ static abi_event gps_ev;
 static abi_event optical_flow_ev;
 static abi_event velocity_estimate_ev;
 //
+static uint32_t timeval_diff(struct timeval *starttime, struct timeval *finishtime);
+
 ///// Callback functions
 static void titus_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance);
 static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro);
@@ -170,6 +171,15 @@ struct Int32Quat ned_to_body_orientation_quat;
 int vision_message_nr;
 int previous_message_nrXY;
 int previous_message_nrZ;
+
+
+
+// FF Takeoff  //////////////////////////////////////////////////
+bool inFFtakeoff;
+bool setFFtime;
+struct timeval FF_starttime;
+
+
 
 // in Z  //////////////////////////////////////////////////
 long previous_timeZ;
@@ -249,6 +259,19 @@ static void send_titusmodule(struct transport_tx *trans, struct link_device *dev
 	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence,&divergence_vision,&TitusLog.of_divergence,&TitusLog.of_size_divergence,&ventralX,&ventralY,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&TitusLog.distance,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi);
 }
 
+/**
+ * Calculate the difference from start till finish
+ * @param[in] *starttime The start time to calculate the difference from
+ * @param[in] *finishtime The finish time to calculate the difference from
+ * @return The difference in milliseconds
+ */
+static uint32_t timeval_diff(struct timeval *starttime, struct timeval *finishtime)
+{
+	uint32_t msec;
+	msec = (finishtime->tv_sec - starttime->tv_sec) * 1000;
+	msec += (finishtime->tv_usec - starttime->tv_usec) / 1000;
+	return msec;
+}
 
 //////////////////////////////////////////// Logging Module ///////////////////////////////////
 void titusmodule_init(void)
@@ -418,8 +441,8 @@ void h_ctrl_module_init(void)
 		ventralY_history[i] = 0;
 	}
 
-	magicfactorX = 1;
-	magicfactorY = 1;
+	magicfactorX = 0.008;
+	magicfactorY = 0.008;
 	oscphi = 1;
 	osctheta = 0;
 }
@@ -449,6 +472,14 @@ void v_ctrl_module_init(void)
 	divergence_vision = 0.0f;
 	cov_divZ = 0.0f;
 	dtZ = 0.0f;
+
+	setFFtime = 0;
+
+	FFtime = 0.6;
+	FFfactor = 1.1;
+
+	performFFtakeoff = 0;
+	inFFtakeoff = performFFtakeoff;
 }
 
 // Read H RC
@@ -478,145 +509,151 @@ void h_ctrl_module_run(bool in_flight)
 	}
 	else
 	{
-		// Manage time stuff ////////////////////////////////////////////////////////////
+		if(inFFtakeoff)
+		{
+			test_sp_eu.phi = 0;
+			test_sp_eu.theta = 0;
+			test_sp_eu.psi = 0;
 
-		// ensure dt >= 0
-		if (dtXY < 0) { dtXY = 0.0f; }
-
-		// get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
-		struct timespec spec;
-		clock_gettime(CLOCK_REALTIME, &spec);
-		long new_time = spec.tv_nsec / 1.0E6;
-		long delta_t = new_time - previous_timeXY;
-		dtXY2 = ((float)delta_t) / 1000.0f;
-		dtXY += dtXY2;
-		if (dtXY > 10.0f) {
-			dtXY = 0.0f;
-			return;
+			// Run the stabilization mode
+			stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
 		}
-		previous_timeXY = new_time;
+		else
+		{
+			// Manage time stuff ////////////////////////////////////////////////////////////
 
+			// ensure dt >= 0
+			if (dtXY < 0) { dtXY = 0.0f; }
 
-		// Update and filter vision ////////////////////////////////////////////////////////////
-
-		float ventral_factor; // factor that maps divergence in pixels as received from vision to /frame
-		if (vision_message_nr != previous_message_nrXY && dtXY > 1E-5 && ind_histXY > 1) {
-			ventral_factor = -1.28f; // magic number comprising field of view etc.
-
-			// TODO: Have a look if it should be floats or int16_t's
-			// TODO: divide or not by dtXY?
-			float new_ventralflowX = (flowX * ventral_factor) / dtXY;
-			float new_ventralflowY = (flowY * ventral_factor) / dtXY;
-			//			float new_ventralflowX = (flowX * ventral_factor);
-
-			// TODO: Prevent large changes with the magic factors 200 and 100
-			//						if (abs(new_ventralflowX - ventralX) > 200) {
-			//							if (new_ventralflowX < ventralX) { new_ventralflowX = ventralX - 100; }
-			//							else { new_ventralflowX = ventralX + 100; }
-			//						}
-
-			// low-pass filter the ventral flows:
-			ventralX = ventralX * of_titusmodule.lp_factor + (new_ventralflowX * (1.0f - of_titusmodule.lp_factor));
-			ventralY = ventralY * of_titusmodule.lp_factor + (new_ventralflowY * (1.0f - of_titusmodule.lp_factor));
-			previous_message_nrXY = vision_message_nr;
-			dtXY = 0.0f;
-		} else {
-			// after re-entering the module, the divergence should be equal to the set point:
-			if (ind_histXY <= 1) {
-				ind_histXY++;
+			// get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
+			struct timespec spec;
+			clock_gettime(CLOCK_REALTIME, &spec);
+			long new_time = spec.tv_nsec / 1.0E6;
+			long delta_t = new_time - previous_timeXY;
+			dtXY2 = ((float)delta_t) / 1000.0f;
+			dtXY += dtXY2;
+			if (dtXY > 10.0f) {
 				dtXY = 0.0f;
+				return;
 			}
-			// else: do nothing, let dt increment
-			return;
+			previous_timeXY = new_time;
+
+
+			// Update and filter vision ////////////////////////////////////////////////////////////
+
+			float ventral_factor; // factor that maps divergence in pixels as received from vision to /frame
+			if (vision_message_nr != previous_message_nrXY && dtXY > 1E-5 && ind_histXY > 1) {
+				ventral_factor = -1.28f; // magic number comprising field of view etc.
+
+				// TODO: Have a look if it should be floats or int16_t's
+				// TODO: divide or not by dtXY?
+				float new_ventralflowX = (flowX * ventral_factor) / dtXY;
+				float new_ventralflowY = (flowY * ventral_factor) / dtXY;
+
+				// TODO: Prevent large changes with the magic factors 200 and 100
+				//						if (abs(new_ventralflowX - ventralX) > 200) {
+				//							if (new_ventralflowX < ventralX) { new_ventralflowX = ventralX - 100; }
+				//							else { new_ventralflowX = ventralX + 100; }
+				//						}
+
+				// low-pass filter the ventral flows:
+				ventralX = ventralX * of_titusmodule.lp_factor + (new_ventralflowX * (1.0f - of_titusmodule.lp_factor));
+				ventralY = ventralY * of_titusmodule.lp_factor + (new_ventralflowY * (1.0f - of_titusmodule.lp_factor));
+				previous_message_nrXY = vision_message_nr;
+				dtXY = 0.0f;
+			} else {
+				// after re-entering the module, the divergence should be equal to the set point:
+				if (ind_histXY <= 1) {
+					ind_histXY++;
+					dtXY = 0.0f;
+				}
+				// else: do nothing, let dt increment
+				return;
+			}
+			errX = of_titusmodule.ventralflow_setpoint - ventralX;
+			errY = of_titusmodule.ventralflow_setpoint - ventralY;
+			of_titusmodule.sum_errX += errX;
+			of_titusmodule.sum_errY += errY;
+
+			// Increase gain & set pitch and roll angles ///////////////////////////////////////////////////////////////////////
+
+			if(!oscillatingX)
+			{
+				pusedX += dtXY2*GAINRAMPX;
+				pusedY += dtXY2*GAINRAMPY;
+			}
+			// set desired pitch en roll
+			if(oscphi)
+			{
+				phi_des = Max(-MAXBANK,Min(magicfactorX * pusedX * errX,MAXBANK)); //+ of_titusmodule.igain * of_titusmodule.sum_err;
+			}
+			else
+			{
+				phi_des = 0;
+			}
+			if(osctheta)
+			{
+				theta_des = Max(-MAXBANK,Min(magicfactorY * pusedY * errY,MAXBANK)); //+ of_titusmodule.igain * of_titusmodule.sum_err;
+			}
+			else
+			{
+				theta_des = 0;
+			}
+
+			test_sp_eu.phi = BFP_OF_REAL(RadOfDeg(phi_des), INT32_ANGLE_FRAC);
+			test_sp_eu.theta = BFP_OF_REAL(RadOfDeg(theta_des), INT32_ANGLE_FRAC);
+
+			// Log everything ////////////////////////////////////////////////////////////////////////
+
+			ventralX_history[ind_histXY % COV_WINDOW_SIZE] = ventralX;
+			ventralY_history[ind_histXY % COV_WINDOW_SIZE] = ventralY;
+
+
+			int ind_past = (ind_histXY % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
+			while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
+
+			past_ventralX_history[ind_histXY % COV_WINDOW_SIZE] = ventralX_history[ind_past];
+			past_ventralY_history[ind_histXY % COV_WINDOW_SIZE] = ventralY_history[ind_past];
+			ind_histXY++;
+
+			// only take covariance into account if there are enough samples in the histories:
+			if (ind_histXY >= COV_WINDOW_SIZE) {
+				cov_divX = get_cov(past_ventralX_history, ventralX_history, COV_WINDOW_SIZE);
+				cov_divY = get_cov(past_ventralY_history, ventralY_history, COV_WINDOW_SIZE);
+			} else {
+				cov_divX = of_titusmodule.cov_set_point;
+				cov_divY = of_titusmodule.cov_set_point;
+			}
+
+			// Check for oscillations ////////////////////////////////////////////////////////////////////
+
+			if(abs(cov_divX)>20000)
+			{
+				if(!oscillatingX)
+				{
+					oscillatingX = 1;
+					pusedX = pusedX*0.75;
+				}
+			}
+			if(cov_divY>20000)
+			{
+				if(!oscillatingY)
+				{
+					oscillatingY = 1;
+					pusedY = pusedY*0.75;
+				}
+			}
+
+
+			// Compute 1 or 2 horizontal axes with optitrack
+			computeOptiTrack(!oscphi,!osctheta,&test_sp_eu);
+
+			// Due to toiletboiling, keep heading 0 for now
+			test_sp_eu.psi = 0;
+
+			// Run the stabilization mode
+			stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
 		}
-		errX = of_titusmodule.ventralflow_setpoint - ventralX;
-		errY = of_titusmodule.ventralflow_setpoint - ventralY;
-		of_titusmodule.sum_errX += errX;
-		of_titusmodule.sum_errY += errY;
-
-		// Increase gain & set pitch and roll angles ///////////////////////////////////////////////////////////////////////
-
-		if(!oscillatingX)
-		{
-			pusedX += dtXY2*GAINRAMPX;
-			pusedY += dtXY2*GAINRAMPY;
-		}
-		// set desired pitch en roll
-		if(oscphi)
-		{
-			phi_des = Max(-MAXBANK,Min(magicfactorX * pusedX * errX,MAXBANK)); //+ of_titusmodule.igain * of_titusmodule.sum_err;
-		}
-		else
-		{
-			phi_des = 0;
-		}
-		if(osctheta)
-		{
-			theta_des = Max(-MAXBANK,Min(magicfactorY * pusedY * errY,MAXBANK)); //+ of_titusmodule.igain * of_titusmodule.sum_err;
-		}
-		else
-		{
-			theta_des = 0;
-		}
-
-		test_sp_eu.phi = BFP_OF_REAL(RadOfDeg(phi_des), INT32_ANGLE_FRAC);
-		test_sp_eu.theta = BFP_OF_REAL(RadOfDeg(theta_des), INT32_ANGLE_FRAC);
-
-		// Log everything ////////////////////////////////////////////////////////////////////////
-
-		ventralX_history[ind_histXY % COV_WINDOW_SIZE] = ventralX;
-		ventralY_history[ind_histXY % COV_WINDOW_SIZE] = ventralY;
-
-
-		int ind_past = (ind_histXY % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
-		while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
-
-		float past_ventralX = ventralX_history[ind_past];
-		float past_ventralY = ventralY_history[ind_past];
-
-		past_ventralX_history[ind_histXY % COV_WINDOW_SIZE] = 100 * past_ventralX;
-		past_ventralY_history[ind_histXY % COV_WINDOW_SIZE] = 100 * past_ventralY;
-		ind_histXY++;
-
-		// only take covariance into account if there are enough samples in the histories:
-		if (ind_histXY >= COV_WINDOW_SIZE) {
-			cov_divX = get_cov(past_ventralX_history, ventralX_history, COV_WINDOW_SIZE);
-			cov_divY = get_cov(past_ventralY_history, ventralY_history, COV_WINDOW_SIZE);
-		} else {
-			cov_divX = of_titusmodule.cov_set_point;
-			cov_divY = of_titusmodule.cov_set_point;
-		}
-
-		// Check for oscillations ////////////////////////////////////////////////////////////////////
-
-		//		if(cov_divX>0.03f)
-		//		{
-		//			if(!oscillatingX)
-		//			{
-		//				oscillatingX = 1;
-		//				pusedX = pusedX*0.5;
-		//				printf("cov div X te groot!");
-		//			}
-		//		}
-		//		if(cov_divY>0.03f)
-		//		{
-		//			if(!oscillatingY)
-		//			{
-		//				oscillatingY = 1;
-		//				pusedY = pusedY*0.5;
-		//				printf("cov div Y te groot!");
-		//			}
-		//		}
-
-
-		// Compute 1 or 2 horizontal axes with optitrack
-		computeOptiTrack(!oscphi,!osctheta,&test_sp_eu);
-
-		// Due to toiletboiling, keep heading 0 for now
-		test_sp_eu.psi = 0;
-
-		// Run the stabilization mode
-		stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
 	}
 }
 
@@ -632,108 +669,139 @@ void v_ctrl_module_run(bool in_flight)
 	}
 	else
 	{
-		if(ofmethode)
+		if(inFFtakeoff)
 		{
-			divergence_vision = regular_divergence;
+			//			struct timespec FFspec;
+			//			clock_gettime(CLOCK_REALTIME, &FFspec);
+			struct timeval FFspec;
+			gettimeofday(&FFspec, NULL);
+
+
+			if(!setFFtime)
+			{
+				setFFtime = 1;
+				FF_starttime = FFspec;
+			}
+			else
+			{
+				uint32_t FF_time = timeval_diff(&FF_starttime,&FFspec);
+				if(FF_time>(uint32_t)(FFtime*1500))
+				{
+					inFFtakeoff = 0;
+				}
+				else if(FF_time>(uint32_t)(FFtime*1000))
+				{
+					stabilization_cmd[COMMAND_THRUST] = of_titusmodule.nominal_thrust * 0.95 * MAX_PPRZ;
+				}
+				else
+				{
+					stabilization_cmd[COMMAND_THRUST] = Max(of_titusmodule.nominal_thrust * FFfactor,1) * MAX_PPRZ;
+				}
+			}
 		}
 		else
 		{
-			divergence_vision = size_divergence;
-		}
-
-		int32_t nominal_throttle = of_titusmodule.nominal_thrust * MAX_PPRZ;
-
-		// Manage time stuff ////////////////////////////////////////////////////////////
-
-		// ensure dt >= 0
-		if (dtZ < 0) { dtZ = 0.0f; }
-
-		// get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
-		struct timespec spec;
-		clock_gettime(CLOCK_REALTIME, &spec);
-		long new_time = spec.tv_nsec / 1.0E6;
-		long delta_t = new_time - previous_timeZ;
-		dtZ2 = ((float)delta_t) / 1000.0f;
-		dtZ += dtZ2;
-		if (dtZ > 10.0f) {
-			dtZ = 0.0f;
-			return;
-		}
-		previous_timeZ = new_time;
-
-
-		// Update and filter vision ////////////////////////////////////////////////////////////
-
-		float div_factor; // factor that maps divergence in pixels as received from vision to /frame
-		if (vision_message_nr != previous_message_nrZ && dtZ > 1E-5 && ind_histZ > 1) {
-			// TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
-			div_factor = -1.28f; // magic number comprising field of view etc.
-			float new_divergence = (divergence_vision * div_factor) / dtZ;
-
-			if (fabs(new_divergence - divergence) > 0.20) {
-				if (new_divergence < divergence) { new_divergence = divergence - 0.10f; }
-				else { new_divergence = divergence + 0.10f; }
+			if(ofmethode)
+			{
+				divergence_vision = regular_divergence;
 			}
-			// low-pass filter the divergence:
-			divergence = divergence * of_titusmodule.lp_factor + (new_divergence * (1.0f - of_titusmodule.lp_factor));
-			previous_message_nrZ = vision_message_nr;
-			dtZ = 0.0f;
-		} else {
-			// after re-entering the module, the divergence should be equal to the set point:
-			if (ind_histZ <= 1) {
-				ind_histZ++;
+			else
+			{
+				divergence_vision = size_divergence;
+			}
+
+			int32_t nominal_throttle = of_titusmodule.nominal_thrust * MAX_PPRZ;
+
+			// Manage time stuff ////////////////////////////////////////////////////////////
+
+			// ensure dt >= 0
+			if (dtZ < 0) { dtZ = 0.0f; }
+
+			// get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
+			struct timespec spec;
+			clock_gettime(CLOCK_REALTIME, &spec);
+			long new_time = spec.tv_nsec / 1.0E6;
+			long delta_t = new_time - previous_timeZ;
+			dtZ2 = ((float)delta_t) / 1000.0f;
+			dtZ += dtZ2;
+			if (dtZ > 10.0f) {
 				dtZ = 0.0f;
+				return;
 			}
-			// else: do nothing, let dt increment
-			return;
-		}
-		errZ = of_titusmodule.divergence_setpoint - divergence;
-		of_titusmodule.sum_errZ += errZ;
+			previous_timeZ = new_time;
 
-		// Increase gain ///////////////////////////////////////////////////////////////////////
 
-		if(!oscillatingZ)
-		{
-			pusedZ += dtZ2*GAINRAMPZ;
-		}
+			// Update and filter vision ////////////////////////////////////////////////////////////
 
-		// TODO: nominal throttle compensated for body angles cos?
-		thrust = nominal_throttle + pusedZ * errZ * MAX_PPRZ; //+ of_titusmodule.igain * of_titusmodule.sum_err * MAX_PPRZ;
+			float div_factor; // factor that maps divergence in pixels as received from vision to /frame
+			if (vision_message_nr != previous_message_nrZ && dtZ > 1E-5 && ind_histZ > 1) {
+				// TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
+				div_factor = -1.28f; // magic number comprising field of view etc.
+				float new_divergence = (divergence_vision * div_factor) / dtZ;
 
-		// Log everything ////////////////////////////////////////////////////////////////////////
+				if (fabs(new_divergence - divergence) > 0.20) {
+					if (new_divergence < divergence) { new_divergence = divergence - 0.10f; }
+					else { new_divergence = divergence + 0.10f; }
+				}
+				// low-pass filter the divergence:
+				divergence = divergence * of_titusmodule.lp_factor + (new_divergence * (1.0f - of_titusmodule.lp_factor));
+				previous_message_nrZ = vision_message_nr;
+				dtZ = 0.0f;
+			} else {
+				// after re-entering the module, the divergence should be equal to the set point:
+				if (ind_histZ <= 1) {
+					ind_histZ++;
+					dtZ = 0.0f;
+				}
+				// else: do nothing, let dt increment
+				return;
+			}
+			errZ = of_titusmodule.divergence_setpoint - divergence;
+			of_titusmodule.sum_errZ += errZ;
 
-		//		normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
-		//		thrust_history[ind_histZ % COV_WINDOW_SIZE] = normalized_thrust;
-		divergence_history[ind_histZ % COV_WINDOW_SIZE] = divergence;
-		int ind_past = (ind_histZ % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
-		while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
-		float past_divergence = divergence_history[ind_past];
-		past_divergence_history[ind_histZ % COV_WINDOW_SIZE] = 100.0f * past_divergence;
-		ind_histZ++;
+			// Increase gain ///////////////////////////////////////////////////////////////////////
 
-		// only take covariance into account if there are enough samples in the histories:
-		if (ind_histZ >= COV_WINDOW_SIZE) {
-			cov_divZ = get_cov(past_divergence_history, divergence_history, COV_WINDOW_SIZE);
-		} else {
-			cov_divZ = of_titusmodule.cov_set_point;
-		}
-
-		// Check for oscillations ////////////////////////////////////////////////////////////////////
-
-		if(cov_divZ>0.03f)
-		{
 			if(!oscillatingZ)
 			{
-				oscillatingZ = 1;
-				pusedZ = pusedZ*0.9;
-				printf("cov div te groot!");
+				pusedZ += dtZ2*GAINRAMPZ;
 			}
+
+			// TODO: nominal throttle compensated for body angles cos?
+			thrust = nominal_throttle + pusedZ * errZ * MAX_PPRZ; //+ of_titusmodule.igain * of_titusmodule.sum_err * MAX_PPRZ;
+
+			// Log everything ////////////////////////////////////////////////////////////////////////
+
+			//		normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
+			//		thrust_history[ind_histZ % COV_WINDOW_SIZE] = normalized_thrust;
+			divergence_history[ind_histZ % COV_WINDOW_SIZE] = divergence;
+			int ind_past = (ind_histZ % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
+			while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
+			float past_divergence = divergence_history[ind_past];
+			past_divergence_history[ind_histZ % COV_WINDOW_SIZE] = 100.0f * past_divergence;
+			ind_histZ++;
+
+			// only take covariance into account if there are enough samples in the histories:
+			if (ind_histZ >= COV_WINDOW_SIZE) {
+				cov_divZ = get_cov(past_divergence_history, divergence_history, COV_WINDOW_SIZE);
+			} else {
+				cov_divZ = of_titusmodule.cov_set_point;
+			}
+
+			// Check for oscillations ////////////////////////////////////////////////////////////////////
+			//	TODO: Remove FABS?
+			if(fabs(cov_divZ)>0.03f)
+			{
+				if(!oscillatingZ)
+				{
+					oscillatingZ = 1;
+					pusedZ = pusedZ*0.85;
+				}
+			}
+
+			// Set thrust ///////////////////////////////////////////////////////////////////////////
+			//					thrust = TitusLog.rc_t;
+			stabilization_cmd[COMMAND_THRUST] = thrust;
 		}
-
-		// Set thrust ///////////////////////////////////////////////////////////////////////////
-		//		thrust = TitusLog.rc_t;
-		stabilization_cmd[COMMAND_THRUST] = thrust;
-
 	}
 }
 
@@ -787,6 +855,8 @@ void guidance_h_module_enter(void)
 		ventralX_history[i] = 0;
 		ventralY_history[i] = 0;
 	}
+
+	inFFtakeoff = performFFtakeoff;
 }
 
 void guidance_h_module_run(bool in_flight)
@@ -838,6 +908,9 @@ void guidance_v_module_enter(void)
 		divergence_history[i] = 0;
 	}
 	stabilization_cmd[COMMAND_THRUST] = of_titusmodule.nominal_thrust * MAX_PPRZ;
+
+	setFFtime = 0;
+	inFFtakeoff = performFFtakeoff;
 }
 
 void guidance_v_module_run(bool in_flight)
@@ -1144,8 +1217,6 @@ static void titus_ctrl_velocity_cb(uint8_t sender_id, uint32_t stamp, float x, f
 	TitusLog.vel_y = y;
 	TitusLog.vel_noise = noise;
 }
-
-
 
 //////////////////////// Z axis working backup
 //void v_ctrl_module_run(bool in_flight)

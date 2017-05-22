@@ -108,12 +108,12 @@ static void opticflow_telem_send(struct transport_tx *trans, struct link_device 
 }
 #endif
 
-static void send_snapshot(struct transport_tx *trans, struct link_device *dev)
-{
-	pthread_mutex_lock(&opticflow_mutex);
-	pprz_msg_send_SNAPSHOT(trans, dev, AC_ID, &opticflow_result.flow_x_snap,&opticflow_result.flow_y_snap,&opticflow_result.divergence_snap,&opticflow_result.distance_x_snap,&opticflow_result.distance_y_snap);
-	pthread_mutex_unlock(&opticflow_mutex);
-}
+//static void send_snapshot(struct transport_tx *trans, struct link_device *dev)
+//{
+//	pthread_mutex_lock(&opticflow_mutex);
+//	pprz_msg_send_SNAPSHOT(trans, dev, AC_ID, &opticflow_result.flow_x_snap,&opticflow_result.flow_y_snap,&opticflow_result.divergence_snap,&opticflow_result.distance_x_snap,&opticflow_result.distance_y_snap);
+//	pthread_mutex_unlock(&opticflow_mutex);
+//}
 
 /**
  * Initialize the optical flow module for the bottom camera
@@ -143,7 +143,7 @@ void opticflow_module_init(void)
 	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_OPTIC_FLOW_EST, opticflow_telem_send);
 #endif
 
-	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SNAPSHOT, send_snapshot);
+//	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SNAPSHOT, send_snapshot);
 }
 
 /**
