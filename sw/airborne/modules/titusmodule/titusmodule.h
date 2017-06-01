@@ -55,7 +55,7 @@ extern void guidance_v_module_run(bool in_flight);
 
 // Settings Variables
 bool ofmethode;
-bool batsize;
+float nominalthrust;
 float magicfactorX;
 float magicfactorY;
 bool oscphi;
@@ -66,7 +66,8 @@ bool performFFtakeoff;
 bool performXY;
 bool performZ;
 float covZthreshold;
-uint16_t covXYthreshold;
+uint32_t covXthreshold;
+uint32_t covYthreshold;
 float startPusedZ;
 float rampZ;
 

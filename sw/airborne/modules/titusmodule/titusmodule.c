@@ -290,7 +290,8 @@ void titusmodule_init(void)
 
 //	of_titusmodule.lp_factor = 0.95f;
 	of_titusmodule.lp_factor = 0.6f;
-	of_titusmodule.nominal_thrust = 0.680f; // 0.734 for large, 0.680 for small
+	of_titusmodule.nominal_thrust = GUIDANCE_V_NOMINAL_HOVER_THROTTLE; // 0.734 for large, 0.680 for small    //
+	nominalthrust = GUIDANCE_V_NOMINAL_HOVER_THROTTLE;
 	of_titusmodule.delay_steps = 40;
 	vision_message_nr = 1;
 	previous_message_nrXY = 0;
@@ -449,13 +450,14 @@ void h_ctrl_module_init(void)
 	oscphi = 1;
 	osctheta = 0;
 
-	startPusedX = 1;
+	startPusedX = 0.25;
 	startPusedY = 1;
 
 	rampX = 0.75;
 	rampY = 0.75;
 
-	covXYthreshold = 20000;
+	covXthreshold = 20000;
+	covYthreshold = 20000;
 
 	performXY = 1;
 	algoXY = performXY;
@@ -656,7 +658,7 @@ void h_ctrl_module_run(bool in_flight)
 
 				// Check for oscillations ////////////////////////////////////////////////////////////////////
 
-				if(abs(cov_divX)>20000)
+				if(abs(cov_divX)>covXthreshold)
 				{
 					if(!oscillatingX)
 					{
@@ -664,7 +666,7 @@ void h_ctrl_module_run(bool in_flight)
 						pusedX = pusedX*0.75;
 					}
 				}
-				if(cov_divY>20000)
+				if(cov_divY>covYthreshold)
 				{
 					if(!oscillatingY)
 					{
@@ -727,11 +729,11 @@ void v_ctrl_module_run(bool in_flight)
 					}
 					else if(FF_time>(uint32_t)(FFtime*1000))
 					{
-						stabilization_cmd[COMMAND_THRUST] = of_titusmodule.nominal_thrust * 0.95 * MAX_PPRZ;
+						stabilization_cmd[COMMAND_THRUST] = nominalthrust * 0.95 * MAX_PPRZ;
 					}
 					else
 					{
-						stabilization_cmd[COMMAND_THRUST] = Max(of_titusmodule.nominal_thrust * FFfactor,1) * MAX_PPRZ;
+						stabilization_cmd[COMMAND_THRUST] = Max(nominalthrust * FFfactor,1) * MAX_PPRZ;
 					}
 				}
 			}
@@ -746,7 +748,7 @@ void v_ctrl_module_run(bool in_flight)
 					divergence_vision = size_divergence;
 				}
 
-				int32_t nominal_throttle = of_titusmodule.nominal_thrust * MAX_PPRZ;
+				int32_t nominal_throttle = nominalthrust * MAX_PPRZ;
 
 				// Manage time stuff ////////////////////////////////////////////////////////////
 
@@ -842,7 +844,7 @@ void v_ctrl_module_run(bool in_flight)
 		}
 		else
 		{
-			thrust = of_titusmodule.nominal_thrust * MAX_PPRZ;
+			thrust = nominalthrust * MAX_PPRZ;
 		}
 	}
 }
@@ -951,7 +953,7 @@ void guidance_v_module_enter(void)
 		//		thrust_history[i] = 0;
 		divergence_history[i] = 0;
 	}
-	stabilization_cmd[COMMAND_THRUST] = of_titusmodule.nominal_thrust * MAX_PPRZ;
+	stabilization_cmd[COMMAND_THRUST] = nominalthrust * MAX_PPRZ;
 
 	setFFtime = 0;
 	inFFtakeoff = performFFtakeoff;

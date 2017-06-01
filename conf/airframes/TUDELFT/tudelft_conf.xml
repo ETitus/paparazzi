@@ -11,7 +11,7 @@
    gui_color="#ffffd633d633"
   />
   <aircraft
-   name="ARDrone2_Titus"
+   name="ARDrone2_Titus_OLD"
    ac_id="44"
    airframe="airframes/TUDELFT/tudelft_tb_ardrone2.xml"
    radio="radios/dummy.xml"

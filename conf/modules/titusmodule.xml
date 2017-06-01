@@ -14,8 +14,7 @@
 		<dl_settings>
 			<dl_settings name="TitusModule">
 				<dl_setting var="ofmethode" min="0" step="1" max="1" module="titusmodule/titusmodule" values="LK|EF" shortname="Optical Flow methode"/>
-				
-				<dl_setting var="batsize" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Small|Large" shortname="Battery Size"/>
+				<dl_setting var="nominalthrust" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="nominalthrust"/>
 				
 				<dl_setting var="magicfactorX" min="0" step="0.001" max="10" module="titusmodule/titusmodule" shortname="magicfactorX"/>
 				<dl_setting var="magicfactorY" min="0" step="0.001" max="10" module="titusmodule/titusmodule" shortname="magicfactorY"/>
@@ -31,7 +30,8 @@
 				<dl_setting var="performZ" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Off|On" shortname="performZ"/>
 				
 				<dl_setting var="covZthreshold" min="0" step="0.001" max="1" module="titusmodule/titusmodule" shortname="covZthreshold"/>
-				<dl_setting var="covXYthreshold" min="0" step="100" max="100000" module="titusmodule/titusmodule" shortname="covXYthreshold"/>
+				<dl_setting var="covXthreshold" min="0" step="100" max="9000000" module="titusmodule/titusmodule" shortname="covXthreshold"/>
+				<dl_setting var="covYthreshold" min="0" step="100" max="9000000" module="titusmodule/titusmodule" shortname="covYthreshold"/>
 				
 				<dl_setting var="startPusedZ" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="startPusedZ"/>
 				<dl_setting var="rampZ" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="rampZ"/>
