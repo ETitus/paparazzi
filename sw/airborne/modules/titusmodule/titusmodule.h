@@ -38,9 +38,9 @@ extern void titusmodule_stop(void);
 
 // Guidance own =            MODULE
 // Without optitrack set to: ATTITUDE
-// With optitrack set to:    HOVER
+// With optitrack set to:    NAV
 #define GUIDANCE_V_MODE_MODULE_SETTING GUIDANCE_V_MODE_MODULE
-#define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_HOVER
+#define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_NAV
 
 // Implement own Horizontal loops
 extern void guidance_h_module_init(void);
@@ -63,6 +63,18 @@ bool osctheta;
 float FFfactor;
 float FFtime;
 bool performFFtakeoff;
+bool performXY;
+bool performZ;
+float covZthreshold;
+uint16_t covXYthreshold;
+float startPusedZ;
+float rampZ;
+
+float startPusedY;
+float rampY;
+float startPusedX;
+float rampX;
+
 
 struct OpticalFlowTitus {
 	float lp_factor;              ///< low-pass factor in [0,1], with 0 purely using the current measurement

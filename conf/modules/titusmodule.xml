@@ -26,6 +26,20 @@
 				<dl_setting var="performFFtakeoff" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Off|On" shortname="performFFtakeoff"/>
 				<dl_setting var="FFtime" min="0" step="0.1" max="2" module="titusmodule/titusmodule" shortname="FFtime"/>
 				<dl_setting var="FFfactor" min="1" step="0.1" max="2" module="titusmodule/titusmodule" shortname="FFfactor"/>
+				
+				<dl_setting var="performXY" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Off|On" shortname="performXY"/>
+				<dl_setting var="performZ" min="0" step="1" max="1" module="titusmodule/titusmodule" values="Off|On" shortname="performZ"/>
+				
+				<dl_setting var="covZthreshold" min="0" step="0.001" max="1" module="titusmodule/titusmodule" shortname="covZthreshold"/>
+				<dl_setting var="covXYthreshold" min="0" step="100" max="100000" module="titusmodule/titusmodule" shortname="covXYthreshold"/>
+				
+				<dl_setting var="startPusedZ" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="startPusedZ"/>
+				<dl_setting var="rampZ" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="rampZ"/>
+				
+				<dl_setting var="startPusedX" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="startPusedX"/>
+				<dl_setting var="rampX" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="rampX"/>
+				<dl_setting var="startPusedY" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="startPusedY"/>
+				<dl_setting var="rampY" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="rampY"/>
 			</dl_settings>
 		</dl_settings>
 	</settings>

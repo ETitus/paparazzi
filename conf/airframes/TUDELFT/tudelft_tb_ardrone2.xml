@@ -117,8 +117,8 @@
 	</section>
 
 	<section name="INS" prefix="INS_">
-		<define name="SONAR_MAX_RANGE" value="2.2" />
-		<define name="SONAR_UPDATE_ON_AGL" value="TRUE" />
+		<!-- define name="SONAR_MAX_RANGE" value="2.2" />
+		<define name="SONAR_UPDATE_ON_AGL" value="TRUE" /-->
 		<!--Use GPS altitude measurments and set the R gain -->
 		<define name="USE_GPS_ALT" value="1" />
 		<define name="VFF_R_GPS" value="0.01" />
@@ -149,8 +149,8 @@
 
 		<define name="REF_OMEGA_R" value="450" unit="deg/s" />
 		<define name="REF_ZETA_R" value="0.9" />
-		<define name="REF_MAX_R" value="600." unit="deg/s" />
-		<define name="REF_MAX_RDOT" value="RadOfDeg(8000.)" />
+		<define name="REF_MAX_R" value="300." unit="deg/s" />
+		<define name="REF_MAX_RDOT" value="RadOfDeg(4000.)" />
 		
 		 <!-- feedback Hann Woei>
   	  	<define name="PHI_PGAIN" value="850"/>
@@ -172,7 +172,7 @@
 
 	</section>
 
-	<section name="STABILIZATION_ATTITUDE_INDI" prefix="STABILIZATION_INDI_">
+	< section name="STABILIZATION_ATTITUDE_INDI" prefix="STABILIZATION_INDI_">
 		<!-- control effectiveness -->
 		<define name="G1_P" value="0.028551973" />
 		<define name="G1_Q" value="0.023775417" />
@@ -202,30 +202,27 @@
 	</section>
 
 	<section name="GUIDANCE_V" prefix="GUIDANCE_V_">
-		<define name="HOVER_KP" value="283" />
-		<define name="HOVER_KD" value="82" />
+		<define name="HOVER_KP" value="363" />
+		<define name="HOVER_KD" value="237" />
+		<!-- define name="HOVER_KP" value="283" />
+		<define name="HOVER_KD" value="82" /-->
 		<define name="HOVER_KI" value="13" />
 		<define name="NOMINAL_HOVER_THROTTLE" value="0.68" />
 		<define name="ADAPT_THROTTLE_ENABLED" value="FALSE" />
 	</section>
 
 	<section name="GUIDANCE_H" prefix="GUIDANCE_H_">
-		<!-- Hann Woei offline -->
-		<!--define name="MAX_BANK" value="22" unit="deg" />
+		<!-- Hann Woei offline >
+		<define name="MAX_BANK" value="22" unit="deg" />
 		<define name="PGAIN" value="79" />
 		<define name="DGAIN" value="100" />
-		<define name="IGAIN" value="30" /-->
-		<!-- define name="REF_MAX_SPEED" value="1.0"/-->
+		<define name="IGAIN" value="30" />
+		<define name="REF_MAX_SPEED" value="1.0"/>
 		<!-- Guido offline -->
 		<define name="MAX_BANK" value="22" unit="deg" />
 		<define name="PGAIN" value="80" />
 		<define name="DGAIN" value="40" />
 		<define name="IGAIN" value="13" />
-		<!-- Guido online 
-		<define name="PGAIN" value="363" />
-		<define name="DGAIN" value="237" />
-		<define name="IGAIN" value="30" />
- -->
 	</section>
 
 	<section name="AUTOPILOT">
