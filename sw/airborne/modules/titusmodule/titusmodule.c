@@ -209,6 +209,7 @@ float divergence_history[COV_WINDOW_SIZE];
 float past_divergence_history[COV_WINDOW_SIZE];
 unsigned long ind_histZ;
 
+float heightEstimate;
 // in XY  //////////////////////////////////////////////////
 long previous_timeXY;
 
@@ -258,7 +259,7 @@ struct LogState TitusLog;
 // sending the divergence message to the ground station:
 static void send_titusmodule(struct transport_tx *trans, struct link_device *dev)
 {
-	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence,&divergence_vision,&TitusLog.of_divergence,&TitusLog.of_size_divergence,&ventralX,&ventralY,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&TitusLog.distance,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi);
+	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID, &divergence,&divergence_vision,&TitusLog.of_divergence,&TitusLog.of_size_divergence,&ventralX,&ventralY,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&TitusLog.distance,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi,&nominalthrust,&heightEstimate);
 }
 
 /**
@@ -506,6 +507,8 @@ void v_ctrl_module_init(void)
 
 	performZ = 1;
 	algoZ = performZ;
+
+	heightEstimate = 0;
 }
 
 // Read H RC
@@ -833,7 +836,9 @@ void v_ctrl_module_run(bool in_flight)
 					{
 						oscillatingZ = 1;
 						algoXY = 1;
+						heightEstimate = (20/3 * pusedZ) - 19/6;
 						pusedZ = pusedZ*0.75;
+
 					}
 				}
 
@@ -953,7 +958,9 @@ void guidance_v_module_enter(void)
 		//		thrust_history[i] = 0;
 		divergence_history[i] = 0;
 	}
+
 	stabilization_cmd[COMMAND_THRUST] = nominalthrust * MAX_PPRZ;
+//	nominalthrust = stabilization_cmd[COMMAND_THRUST]/MAX_PPRZ;
 
 	setFFtime = 0;
 	inFFtakeoff = performFFtakeoff;

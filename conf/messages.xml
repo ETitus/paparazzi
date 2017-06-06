@@ -2301,7 +2301,8 @@
 			<field name="test_sp_eu_phi" type="int32"> The send phi angle in ???</field>
 			<field name="test_sp_eu_theta" type="int32"> The send theta angle in ???</field>
 			<field name="test_sp_eu_psi" type="int32"> The desired psi angle in ???</field>
-
+			<field name="nominalthrust" type="float"> Nominal Thrust calculated from last known Hover command</field>
+			<field name="heightEstimate" type="float"> Estimated height at Oscillation</field>
 		</message>
 
 		<message name="SNAPSHOT" id="249">

@@ -39,8 +39,8 @@ extern void titusmodule_stop(void);
 // Guidance own =            MODULE
 // Without optitrack set to: ATTITUDE
 // With optitrack set to:    NAV
-#define GUIDANCE_V_MODE_MODULE_SETTING GUIDANCE_V_MODE_MODULE
-#define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_NAV
+#define GUIDANCE_V_MODE_MODULE_SETTING GUIDANCE_V_MODE_NAV
+#define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_MODULE
 
 // Implement own Horizontal loops
 extern void guidance_h_module_init(void);
