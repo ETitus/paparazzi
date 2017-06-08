@@ -457,8 +457,8 @@ void h_ctrl_module_init(void)
 	rampX = 0.75;
 	rampY = 0.75;
 
-	covXthreshold = 20000;
-	covYthreshold = 20000;
+	covXthreshold = 30000;
+	covYthreshold = 30000;
 
 	performXY = 1;
 	algoXY = performXY;
@@ -838,6 +838,14 @@ void v_ctrl_module_run(bool in_flight)
 						algoXY = 1;
 						heightEstimate = (20/3 * pusedZ) - 19/6;
 						pusedZ = pusedZ*0.75;
+
+
+						// Test setting XY
+						pusedX = 0.75*(0.1*heightEstimate +0.35);
+						pusedY = 0.75*(0.1*heightEstimate +0.35);
+						oscillatingX = 1;
+						oscillatingY = 1;
+
 
 					}
 				}
