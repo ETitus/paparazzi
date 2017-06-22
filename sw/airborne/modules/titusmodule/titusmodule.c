@@ -58,61 +58,61 @@
 static FILE *file_logger = NULL;
 
 // Define ABI IDs
-#ifndef TITUSMODULE_AGL_ID
-#define TITUSMODULE_AGL_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(TITUSMODULE_AGL_ID)
+//#ifndef TITUSMODULE_AGL_ID
+//#define TITUSMODULE_AGL_ID ABI_BROADCAST
+//#endif
+//PRINT_CONFIG_VAR(TITUSMODULE_AGL_ID)
+////
+//#ifndef TITUSMODULE_IMU_GYRO_INT32_ID
+//#define TITUSMODULE_IMU_GYRO_INT32_ID ABI_BROADCAST
+//#endif
+//PRINT_CONFIG_VAR(TITUSMODULE_IMU_GYRO_INT32_ID)
 //
-#ifndef TITUSMODULE_IMU_GYRO_INT32_ID
-#define TITUSMODULE_IMU_GYRO_INT32_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(TITUSMODULE_IMU_GYRO_INT32_ID)
-
-#ifndef TITUSMODULE_IMU_ACCEL_INT32_ID
-#define TITUSMODULE_IMU_ACCEL_INT32_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(TITUSMODULE_IMU_ACCEL_INT32_ID)
-
+//#ifndef TITUSMODULE_IMU_ACCEL_INT32_ID
+//#define TITUSMODULE_IMU_ACCEL_INT32_ID ABI_BROADCAST
+//#endif
+//PRINT_CONFIG_VAR(TITUSMODULE_IMU_ACCEL_INT32_ID)
+//
 //#ifndef TITUSMODULE_IMU_LOWPASSED_ID
 //#define TITUSMODULE_IMU_LOWPASSED_ID ABI_BROADCAST
 //#endif
 //PRINT_CONFIG_VAR(TITUSMODULE_IMU_LOWPASSED_ID)
-
-#ifndef TITUSMODULE_GPS_ID
-#define TITUSMODULE_GPS_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(TITUSMODULE_GPS_ID)
-
+//
+//#ifndef TITUSMODULE_GPS_ID
+//#define TITUSMODULE_GPS_ID ABI_BROADCAST
+//#endif
+//PRINT_CONFIG_VAR(TITUSMODULE_GPS_ID)
+//
 #ifndef TITUSMODULE_OPTICAL_FLOW_ID
 #define TITUSMODULE_OPTICAL_FLOW_ID ABI_BROADCAST
 #endif
 PRINT_CONFIG_VAR(TITUSMODULE_OPTICAL_FLOW_ID)
-
-#ifndef TITUSMODULE_VELOCITY_ESTIMATE_ID
-#define TITUSMODULE_VELOCITY_ESTIMATE_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(TITUSMODULE_VELOCITY_ESTIMATE_ID)
+//
+//#ifndef TITUSMODULE_VELOCITY_ESTIMATE_ID
+//#define TITUSMODULE_VELOCITY_ESTIMATE_ID ABI_BROADCAST
+//#endif
+//PRINT_CONFIG_VAR(TITUSMODULE_VELOCITY_ESTIMATE_ID)
 
 
 // The ABI events
-static abi_event agl_ev;
-static abi_event imu_gyro_int32_ev;
-static abi_event imu_accel_int32_ev;
-//static abi_event imu_lowpassed_ev;
-static abi_event gps_ev;
+//static abi_event agl_ev;
+//static abi_event imu_gyro_int32_ev;
+//static abi_event imu_accel_int32_ev;
+////static abi_event imu_lowpassed_ev;
+//static abi_event gps_ev;
 static abi_event optical_flow_ev;
-static abi_event velocity_estimate_ev;
+//static abi_event velocity_estimate_ev;
 //
 static uint32_t timeval_diff(struct timeval *starttime, struct timeval *finishtime);
 
 ///// Callback functions
-static void titus_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance);
-static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro);
-static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct Int32Vect3 *accel);
-//static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag);
-static void titus_ctrl_gps_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, struct GpsState *gps_s);
+//static void titus_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance);
+//static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro);
+//static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct Int32Vect3 *accel);
+////static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag);
+//static void titus_ctrl_gps_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, struct GpsState *gps_s);
 static void titus_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_divergence, float divergence, float dist);
-static void titus_ctrl_velocity_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, float x, float y, float z, float noise);
+//static void titus_ctrl_velocity_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, float x, float y, float z, float noise);
 
 // Run & init functions
 void h_ctrl_module_init(void);
@@ -137,7 +137,7 @@ float get_mean_array(float *a, int n_elements);
  * you get an angle of 5.6 degrees for 1m pos error */
 #define GH_GAIN_SCALE 2
 
-#define MAX_POS_ERR   POS_BFP_OF_REAL(16.)
+#define MAX_POS_ERR POS_BFP_OF_REAL(16.)
 #define MAX_SPEED_ERR SPEED_BFP_OF_REAL(16.)
 
 /*
@@ -196,7 +196,7 @@ float dtZ;
 float dtZ2;
 
 float cov_divZ;
-//float normalized_thrust;
+float normalized_thrust;
 uint32_t thrust;
 float pusedZ;
 float errZ;
@@ -204,12 +204,14 @@ float errZ;
 bool oscillatingZ;
 bool algoZ;
 
-//float thrust_history[COV_WINDOW_SIZE];
+float thrust_history[COV_WINDOW_SIZE];
 float divergence_history[COV_WINDOW_SIZE];
 float past_divergence_history[COV_WINDOW_SIZE];
 unsigned long ind_histZ;
 
 float heightEstimate;
+
+float OptiThrust;
 // in XY  //////////////////////////////////////////////////
 long previous_timeXY;
 
@@ -280,16 +282,16 @@ static uint32_t timeval_diff(struct timeval *starttime, struct timeval *finishti
 void titusmodule_init(void)
 {
 	// Subscribe to ABI messages
-	AbiBindMsgAGL(TITUSMODULE_AGL_ID, &agl_ev, titus_ctrl_agl_cb);
-	AbiBindMsgIMU_GYRO_INT32(TITUSMODULE_IMU_GYRO_INT32_ID, &imu_gyro_int32_ev, titus_ctrl_imu_gyro_int32);
-	AbiBindMsgIMU_ACCEL_INT32(TITUSMODULE_IMU_ACCEL_INT32_ID, &imu_accel_int32_ev, titus_ctrl_imu_accel_int32);
-	//	AbiBindMsgIMU_LOWPASSED(TITUSMODULE_IMU_LOWPASSED_ID, &imu_lowpassed_ev, titus_ctrl_imu_lowpassed);
-	AbiBindMsgGPS(TITUSMODULE_GPS_ID, &gps_ev, titus_ctrl_gps_cb);
+	//	AbiBindMsgAGL(TITUSMODULE_AGL_ID, &agl_ev, titus_ctrl_agl_cb);
+	//	AbiBindMsgIMU_GYRO_INT32(TITUSMODULE_IMU_GYRO_INT32_ID, &imu_gyro_int32_ev, titus_ctrl_imu_gyro_int32);
+	//	AbiBindMsgIMU_ACCEL_INT32(TITUSMODULE_IMU_ACCEL_INT32_ID, &imu_accel_int32_ev, titus_ctrl_imu_accel_int32);
+	//	//	AbiBindMsgIMU_LOWPASSED(TITUSMODULE_IMU_LOWPASSED_ID, &imu_lowpassed_ev, titus_ctrl_imu_lowpassed);
+	//	AbiBindMsgGPS(TITUSMODULE_GPS_ID, &gps_ev, titus_ctrl_gps_cb);
 	AbiBindMsgOPTICAL_FLOW(TITUSMODULE_OPTICAL_FLOW_ID, &optical_flow_ev, titus_ctrl_optical_flow_cb);
-	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
+	//	AbiBindMsgVELOCITY_ESTIMATE(TITUSMODULE_VELOCITY_ESTIMATE_ID, &velocity_estimate_ev,titus_ctrl_velocity_cb);
 
 
-//	of_titusmodule.lp_factor = 0.95f;
+	//	of_titusmodule.lp_factor = 0.95f;
 	of_titusmodule.lp_factor = 0.6f;
 	of_titusmodule.nominal_thrust = GUIDANCE_V_NOMINAL_HOVER_THROTTLE; // 0.734 for large, 0.680 for small    //
 	nominalthrust = GUIDANCE_V_NOMINAL_HOVER_THROTTLE;
@@ -406,9 +408,13 @@ void titusmodule_start(void)
 void titusmodule_periodic(void)
 {
 	// Body Rates
-	TitusLog.body_rates_i = stateGetBodyRates_i(); // in rad/s
+	//	TitusLog.body_rates_i = stateGetBodyRates_i(); // in rad/s
 
 	//	file_logger_periodic();
+	if((autopilot_get_mode()==autopilot_get_mode()) && (stabilization_cmd[COMMAND_THRUST]))
+	{
+		OptiThrust = stabilization_cmd[COMMAND_THRUST];
+	}
 }
 
 void titusmodule_stop(void)
@@ -452,7 +458,7 @@ void h_ctrl_module_init(void)
 	osctheta = 0;
 
 	startPusedX = 0.25;
-	startPusedY = 1;
+	startPusedY = 0.25;
 
 	rampX = 0.75;
 	rampY = 0.75;
@@ -482,7 +488,7 @@ void v_ctrl_module_init(void)
 	// clear histories:
 	ind_histZ = 0;
 	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
-		//		thrust_history[i] = 0;
+		thrust_history[i] = 0;
 		divergence_history[i] = 0;
 	}
 
@@ -498,7 +504,9 @@ void v_ctrl_module_init(void)
 
 	rampZ = 0.5;
 
-	startPusedZ = 0.5;
+	startPusedZ = 0.4;
+
+	testigainZ = 0;
 
 	covZthreshold = 0.03;
 
@@ -758,7 +766,7 @@ void v_ctrl_module_run(bool in_flight)
 				// ensure dt >= 0
 				if (dtZ < 0) { dtZ = 0.0f; }
 
-				// get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
+				// get delta time, dt
 				struct timespec spec;
 				clock_gettime(CLOCK_REALTIME, &spec);
 				long new_time = spec.tv_nsec / 1.0E6;
@@ -802,18 +810,18 @@ void v_ctrl_module_run(bool in_flight)
 
 				// Increase gain ///////////////////////////////////////////////////////////////////////
 
-				if(!oscillatingZ)
+				if((!oscillatingZ) && (ind_histZ >= COV_WINDOW_SIZE))
 				{
 					pusedZ += dtZ2*rampZ;
 				}
 
 				// TODO: nominal throttle compensated for body angles cos?
-				thrust = nominal_throttle + pusedZ * errZ * MAX_PPRZ; //+ of_titusmodule.igain * of_titusmodule.sum_err * MAX_PPRZ;
-
+				thrust = (nominal_throttle) + pusedZ * errZ * MAX_PPRZ + testigainZ * of_titusmodule.sum_errZ * MAX_PPRZ;
+				//				+0.01*MAX_PPRZ
 				// Log everything ////////////////////////////////////////////////////////////////////////
 
-				//		normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
-				//		thrust_history[ind_histZ % COV_WINDOW_SIZE] = normalized_thrust;
+				normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
+				thrust_history[ind_histZ % COV_WINDOW_SIZE] = normalized_thrust;
 				divergence_history[ind_histZ % COV_WINDOW_SIZE] = divergence;
 				int ind_past = (ind_histZ % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
 				while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
@@ -823,8 +831,11 @@ void v_ctrl_module_run(bool in_flight)
 
 				// only take covariance into account if there are enough samples in the histories:
 				if (ind_histZ >= COV_WINDOW_SIZE) {
+
+					//						cov_divZ = get_cov(thrust_history, divergence_history, COV_WINDOW_SIZE);
 					cov_divZ = get_cov(past_divergence_history, divergence_history, COV_WINDOW_SIZE);
-				} else {
+				}
+				else {
 					cov_divZ = of_titusmodule.cov_set_point;
 				}
 
@@ -836,15 +847,15 @@ void v_ctrl_module_run(bool in_flight)
 					{
 						oscillatingZ = 1;
 						algoXY = 1;
-						heightEstimate = (20/3 * pusedZ) - 19/6;
+						//						heightEstimate = (20/3 * pusedZ) - 19/6;
 						pusedZ = pusedZ*0.75;
 
 
 						// Test setting XY
-						pusedX = 0.75*(0.1*heightEstimate +0.35);
-						pusedY = 0.75*(0.1*heightEstimate +0.35);
-						oscillatingX = 1;
-						oscillatingY = 1;
+						//						pusedX = 0.75*(0.1*heightEstimate +0.35);
+						//						pusedY = 0.75*(0.1*heightEstimate +0.35);
+						//						oscillatingX = 1;
+						//						oscillatingY = 1;
 
 
 					}
@@ -941,14 +952,14 @@ void guidance_v_module_enter(void)
 	of_titusmodule.sum_errZ = 0.0f;
 
 
-//	if(batsize)
-//	{
-//		of_titusmodule.nominal_thrust = 0.734; // 0.734 for large
-//	}
-//	else
-//	{
-//		of_titusmodule.nominal_thrust = 0.680f; // 0.680 for small
-//	}
+	//	if(batsize)
+	//	{
+	//		of_titusmodule.nominal_thrust = 0.734; // 0.734 for large
+	//	}
+	//	else
+	//	{
+	//		of_titusmodule.nominal_thrust = 0.680f; // 0.680 for small
+	//	}
 	oscillatingZ = 0;
 	ind_histZ = 0;
 	pusedZ = startPusedZ;
@@ -967,8 +978,9 @@ void guidance_v_module_enter(void)
 		divergence_history[i] = 0;
 	}
 
+
+	nominalthrust = OptiThrust/MAX_PPRZ;
 	stabilization_cmd[COMMAND_THRUST] = nominalthrust * MAX_PPRZ;
-//	nominalthrust = stabilization_cmd[COMMAND_THRUST]/MAX_PPRZ;
 
 	setFFtime = 0;
 	inFFtakeoff = performFFtakeoff;
@@ -1216,39 +1228,39 @@ void file_logger_stop(void)
 	}
 }
 
-// Read sensors
-static void titus_ctrl_agl_cb(uint8_t sender_id, float distance)
-{
-	//	printf("distance updated \n");
-	TitusLog.distance = distance;
-
-}
-static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro)
-{
-	//	printf("gyro updated\n");
-	TitusLog.gyro_stamp = stamp;
-	TitusLog.gyro_gyro = gyro;
-}
-static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct Int32Vect3 *accel)
-{
-	//	printf("accel updated \n");
-	TitusLog.accel_stamp = stamp;
-	TitusLog.accel_accel = accel;
-}
-//static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag)
+//// Read sensors
+//static void titus_ctrl_agl_cb(uint8_t sender_id, float distance)
 //{
-//	//	printf("imu updated \n");
-//	TitusLog.imu_stamp = stamp;
-//	TitusLog.imu_gyro = gyro;
-//	TitusLog.imu_accel = accel;
-//	TitusLog.imu_mag = mag;
+//	//	printf("distance updated \n");
+//	TitusLog.distance = distance;
+//
 //}
-static void titus_ctrl_gps_cb(uint8_t sender_id, uint32_t stamp, struct GpsState *gps_s)
-{
-	//		printf("gps updated \n");
-	TitusLog.gps_stamp = stamp;
-	TitusLog.gps_gps_s = gps_s;
-}
+//static void titus_ctrl_imu_gyro_int32(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro)
+//{
+//	//	printf("gyro updated\n");
+//	TitusLog.gyro_stamp = stamp;
+//	TitusLog.gyro_gyro = gyro;
+//}
+//static void titus_ctrl_imu_accel_int32(uint8_t sender_id, uint32_t stamp, struct Int32Vect3 *accel)
+//{
+//	//	printf("accel updated \n");
+//	TitusLog.accel_stamp = stamp;
+//	TitusLog.accel_accel = accel;
+//}
+////static void titus_ctrl_imu_lowpassed(uint8_t sender_id, uint32_t stamp, struct Int32Rates *gyro, struct Int32Vect3 *accel, struct Int32Vect3 *mag)
+////{
+////	//	printf("imu updated \n");
+////	TitusLog.imu_stamp = stamp;
+////	TitusLog.imu_gyro = gyro;
+////	TitusLog.imu_accel = accel;
+////	TitusLog.imu_mag = mag;
+////}
+//static void titus_ctrl_gps_cb(uint8_t sender_id, uint32_t stamp, struct GpsState *gps_s)
+//{
+//	//		printf("gps updated \n");
+//	TitusLog.gps_stamp = stamp;
+//	TitusLog.gps_gps_s = gps_s;
+//}
 static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div,float regular_div, float dist)
 {
 	//	printf("OF updated \n");
@@ -1271,14 +1283,14 @@ static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_
 	if (vision_message_nr > 10) { vision_message_nr = 0; }
 
 }
-static void titus_ctrl_velocity_cb(uint8_t sender_id, uint32_t stamp, float x, float y, float z, float noise)
-{
-	//	printf("Velo updated \n");
-	TitusLog.vel_stamp = stamp;
-	TitusLog.vel_x = x;
-	TitusLog.vel_y = y;
-	TitusLog.vel_noise = noise;
-}
+//static void titus_ctrl_velocity_cb(uint8_t sender_id, uint32_t stamp, float x, float y, float z, float noise)
+//{
+//	//	printf("Velo updated \n");
+//	TitusLog.vel_stamp = stamp;
+//	TitusLog.vel_x = x;
+//	TitusLog.vel_y = y;
+//	TitusLog.vel_noise = noise;
+//}
 
 //////////////////////// Z axis working backup
 //void v_ctrl_module_run(bool in_flight)

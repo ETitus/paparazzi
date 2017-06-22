@@ -46,6 +46,7 @@
 				
 					<dl_setting var="startPusedZ" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="startPusedZ"/>
 					<dl_setting var="rampZ" min="0" step="0.01" max="1" module="titusmodule/titusmodule" shortname="rampZ"/>
+					<dl_setting var="testigainZ" min="0" step="0.001" max="0.1" module="titusmodule/titusmodule" shortname="testigainZ"/>
 				</dl_settings>
 				
 			</dl_settings>
@@ -58,7 +59,7 @@
 
 	<init fun="titusmodule_init()" />
 	<periodic fun="titusmodule_periodic()" start="titusmodule_start()"
-		stop="titusmodule_stop()" autorun="FALSE" />
+		stop="titusmodule_stop()" autorun="TRUE" />
 
 	<makefile target="ap">
 		<file name="titusmodule.c" />

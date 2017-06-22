@@ -76,6 +76,7 @@ float rampY;
 float startPusedX;
 float rampX;
 
+float testigainZ;
 
 struct OpticalFlowTitus {
 	float lp_factor;              ///< low-pass factor in [0,1], with 0 purely using the current measurement

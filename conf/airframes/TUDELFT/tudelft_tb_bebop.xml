@@ -12,14 +12,14 @@
 		<module name="gps" type="datalink"/>
 
 		<module name="stabilization" type="indi_simple"/>
-		<module name="stabilization" type="rate_indi" />
+		<module name="stabilization" type="rate_indi"/>
 
 		<module name="ahrs" type="int_cmpl_quat">
 			<configure name="USE_MAGNETOMETER" value="FALSE"/> <!-- TURN ON OUTSIDE -->
 			<define name="AHRS_USE_GPS_HEADING" value="TRUE"/>
 		</module>
 		<module name="ins" type="extended"/>
-    <module name="guidance" type="indi"/>
+    <!-- module name="guidance" type="indi"/-->
 		<!-- <module name="guidance" type="indi"> <define name="GUIDANCE_INDI_SPECIFIC_FORCE_GAIN" 
 			value="-500.0"/> <define name="GUIDANCE_INDI_THRUST_DYNAMICS" value="0.1"/> 
 			<define name="GUIDANCE_INDI_RC_DEBUG" value="TRUE"/> </module> -->
@@ -127,10 +127,10 @@
 
  <section name="STABILIZATION_ATTITUDE_INDI" prefix="STABILIZATION_INDI_">
     <!-- control effectiveness -->
-    <define name="G1_P" value="0.042757"/>
-    <define name="G1_Q" value="0.030608"/>
-    <define name="G1_R" value="0.002283"/>
-    <define name="G2_R" value="0.115022"/>
+    <define name="G1_P" value="0.030367"/>
+    <define name="G1_Q" value="0.023655"/>
+    <define name="G1_R" value="0.001005"/>
+    <define name="G2_R" value="0.10882"/>
 
     <!-- reference acceleration for attitude control -->
     <define name="REF_ERR_P" value="600.0"/>
@@ -157,29 +157,26 @@
     <define name="ADAPTIVE_MU" value="0.0001"/>
   </section>
 
-	<section name="GUIDANCE_V" prefix="GUIDANCE_V_">
-		<define name="HOVER_KP" value="283"/>
-		<define name="HOVER_KD" value="82"/>
-		<define name="HOVER_KI" value="20"/>
-		<define name="NOMINAL_HOVER_THROTTLE" value="0.68"/>
-		<define name="ADAPT_THROTTLE_ENABLED" value="FALSE"/>
-		<define name="ADAPT_INITIAL_HOVER_THROTTLE" value="0.73"/>
-		<define name="ADAPT_MIN_HOVER_THROTTLE" value="0.55"/>
-		<define name="ADAPT_MAX_HOVER_THROTTLE" value="0.72"/>
-		<!-- <define name="ADAPT_NOISE_FACTOR" value="0.8" /> -->
-	</section>
+  <section name="GUIDANCE_V" prefix="GUIDANCE_V_">
+    <!--define name="HOVER_KP" value="550"/-->
+    <define name="HOVER_KP" value="600"/>
+    <define name="HOVER_KD" value="200"/>
+    <define name="HOVER_KI" value="100"/>  <!-- 13 -->
+    <define name="NOMINAL_HOVER_THROTTLE" value="0.7"/>
+    <define name="ADAPT_THROTTLE_ENABLED" value="FALSE"/>
+  </section>
 
-	<section name="GUIDANCE_H" prefix="GUIDANCE_H_">
-		<!-- Good weather -->
-		<define name="MAX_BANK" value="20" unit="deg"/>
-		<define name="REF_MAX_SPEED" value="2" unit="m/s"/>
-		<!-- Bad weather -->
-		<!-- define name="MAX_BANK" value="32" unit="deg"/ -->
-		<define name="PGAIN" value="120"/>
-		<define name="DGAIN" value="230"/>
-		<define name="IGAIN" value="40"/>
-	</section>
-
+  <section name="GUIDANCE_H" prefix="GUIDANCE_H_">
+    <!-- Good weather -->
+    <define name="MAX_BANK" value="20" unit="deg"/>
+    <!-- Bad weather -->
+    <!-- define name="MAX_BANK" value="32" unit="deg"/ -->
+    <define name="PGAIN" value="300"/>
+    <define name="DGAIN" value="350"/>
+    <define name="IGAIN" value="30"/>
+    <define name="REF_MAX_SPEED" value="0.5"/>
+  </section>
+  
 	<section name="NAVIGATION" prefix="NAV_">
 		<define name="CLIMB_VSPEED" value="1.0"/>
 		<define name="DESCEND_VSPEED" value="-0.75"/>
