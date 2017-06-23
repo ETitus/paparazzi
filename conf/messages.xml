@@ -2267,21 +2267,15 @@
 
 		<message name="TITUSMODULE" id="248">
 			<field name="divergence" type="float"> Filtered vertical velocity / height used in thrust calculations</field>
-				<field name="regular_divergence" type="float"> Regular vertical velocity / height from
-				OPTICFLOW_MESSAGE</field>
-				<field name="size_divergence" type="float"> Size method vertical velocity / height from
-				OPTICFLOW_MESSAGE</field>
+			<field name="regular_divergence" type="float"> Regular vertical velocity / height from OPTICFLOW_MESSAGE</field>
+			<field name="size_divergence" type="float"> Size method vertical velocity / height from	OPTICFLOW_MESSAGE</field>
 			<field name="ventralX" type="int16"> horizontal velocity in X (px/s)</field>
 			<field name="ventralY" type="int16"> horizontal velocity in Y (px/s)</field>
-			
 			<field name="flowX" type="int16"> filtered flow in X</field>
 			<field name="flowY" type="int16"> filtered flow in X</field>
-			<field name="cov_divX" type="float"> covariance of Ventral flow in X
-				and past ventral flow in X</field>
-			<field name="cov_divY" type="float"> covariance of Ventral flow in Y
-				and past ventral flow in Y</field>
-			<field name="cov_divZ" type="float"> covariance of divergence and past
-				divergence</field>
+			<field name="cov_divX" type="float"> covariance of Ventral flow in X and past ventral flow in X</field>
+			<field name="cov_divY" type="float"> covariance of Ventral flow in Y and past ventral flow in Y</field>
+			<field name="cov_divZ" type="float"> covariance of divergence and past divergence</field>
 			<field name="sonar" type="float"> measurement from the sonar (mm)</field>
 			<field name="errX" type="float"> Error in flow X</field>
 			<field name="errY" type="float"> Error in flow Y</field>
