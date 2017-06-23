@@ -2266,14 +2266,11 @@
 		</message>
 
 		<message name="TITUSMODULE" id="248">
-			<field name="divergence" type="float"> Filtered vertical velocity / height from
-				optitrack (unit = 1/sec)</field>
-				<field name="divergence_vision" type="float"> Used vertical velocity /height
-				from vision (unit = 1/sec)</field>
+			<field name="divergence" type="float"> Filtered vertical velocity / height used in thrust calculations</field>
 				<field name="regular_divergence" type="float"> Regular vertical velocity / height from
-				optitrack (unit = 1/sec)</field>
+				OPTICFLOW_MESSAGE</field>
 				<field name="size_divergence" type="float"> Size method vertical velocity / height from
-				optitrack (unit = 1/sec)</field>
+				OPTICFLOW_MESSAGE</field>
 			<field name="ventralX" type="int16"> horizontal velocity in X (px/s)</field>
 			<field name="ventralY" type="int16"> horizontal velocity in Y (px/s)</field>
 			
