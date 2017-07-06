@@ -136,7 +136,7 @@ float dtZ;
 float dtZ2;
 
 float cov_divZ;
-float normalized_thrust;
+//float normalized_thrust;
 uint32_t thrust;
 float pusedZ;
 float errZ;
@@ -144,7 +144,7 @@ float errZ;
 bool oscillatingZ;
 bool algoZ;
 
-float thrust_history[COV_WINDOW_SIZE];
+//float thrust_history[COV_WINDOW_SIZE];
 float divergence_history[COV_WINDOW_SIZE];
 float past_divergence_history[COV_WINDOW_SIZE];
 unsigned long ind_histZ;
@@ -194,7 +194,8 @@ int32_t theta_des;
 //// Rest  ///////////////////////////////////////////
 
 struct OpticalFlowTitus of_titusmodule;
-float sonarDistance;
+float height;
+int16_t thrustNoise;
 
 
 
@@ -205,7 +206,7 @@ float sonarDistance;
 // sending the divergence message to the ground station:
 static void send_titusmodule(struct transport_tx *trans, struct link_device *dev)
 {
-	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID,&divergence_vision,&regular_divergence,&size_divergence,&ventralX,&ventralY,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&sonarDistance,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi,&nominalthrust,&heightEstimate);
+	pprz_msg_send_TITUSMODULE(trans, dev, AC_ID,&divergence,&regular_divergence,&size_divergence,&ventralX,&ventralY,&flowX,&flowY,&cov_divX,&cov_divY,&cov_divZ,&height,&errX,&errY,&errZ,&pusedX,&pusedY,&pusedZ,&of_titusmodule.sum_errX,&of_titusmodule.sum_errY,&of_titusmodule.sum_errZ,&thrust,&phi_des,&theta_des,&test_sp_eu.phi,&test_sp_eu.theta,&test_sp_eu.psi,&nominalthrust,&heightEstimate);
 }
 
 /**
@@ -235,7 +236,8 @@ void titusmodule_init(void)
 	previous_message_nrXY = 0;
 	previous_message_nrZ  = 0;
 	ofmethode = OPTICFLOW_METHOD;
-	sonarDistance = 0;
+	height = 0;
+	thrustNoise = 0;
 
 	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_TITUSMODULE, send_titusmodule);
 }
@@ -281,6 +283,8 @@ void h_ctrl_module_init(void)
 	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
 		ventralX_history[i] = 0;
 		ventralY_history[i] = 0;
+		past_ventralX_history[i]=0;
+		past_ventralY_history[i]=0;
 	}
 
 	magicfactorX = 0.008;
@@ -315,8 +319,9 @@ void v_ctrl_module_init(void)
 	// clear histories:
 	ind_histZ = 0;
 	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
-		thrust_history[i] = 0;
+		//		thrust_history[i] = 0;
 		divergence_history[i] = 0;
+		past_divergence_history[i]=0;
 	}
 
 	divergence = 0;
@@ -534,6 +539,7 @@ void v_ctrl_module_run(bool in_flight)
 {
 	if (!in_flight)
 	{
+		//		printf("randW,%d,rand,%f\n",(int) round( ( (double) rand() ) / ( (double) RAND_MAX)*(100) ),round(rand()));
 		// Reset integrators
 		stabilization_cmd[COMMAND_THRUST] = 0;
 	}
@@ -573,6 +579,8 @@ void v_ctrl_module_run(bool in_flight)
 			}
 			else
 			{
+				//				if (vision_message_nr != previous_message_nrZ)
+				//				{
 				if(ofmethode)
 				{
 					divergence_vision = regular_divergence;
@@ -606,7 +614,8 @@ void v_ctrl_module_run(bool in_flight)
 				// Update and filter vision ////////////////////////////////////////////////////////////
 
 				float div_factor; // factor that maps divergence in pixels as received from vision to /frame
-				if (vision_message_nr != previous_message_nrZ && dtZ > 1E-5 && ind_histZ > 1) {
+				//					if (dtZ > 1E-5 && ind_histZ > 1) {
+				if (vision_message_nr != previous_message_nrZ && dtZ > 1E-5 && ind_histZ >= 1) {
 					// TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
 					div_factor = -1.28f; // magic number comprising field of view etc.
 					float new_divergence = (divergence_vision * div_factor) / dtZ;
@@ -621,7 +630,7 @@ void v_ctrl_module_run(bool in_flight)
 					dtZ = 0.0f;
 				} else {
 					// after re-entering the module, the divergence should be equal to the set point:
-					if (ind_histZ <= 1) {
+					if (ind_histZ < 1) {
 						ind_histZ++;
 						dtZ = 0.0f;
 					}
@@ -633,10 +642,11 @@ void v_ctrl_module_run(bool in_flight)
 
 				// Increase gain ///////////////////////////////////////////////////////////////////////
 
-				if((!oscillatingZ) && (ind_histZ >= COV_WINDOW_SIZE))
-				{
-					pusedZ += dtZ2*rampZ;
-				}
+//				if((!oscillatingZ) && (ind_histZ >= 1*COV_WINDOW_SIZE+of_titusmodule.delay_steps))
+					if((!oscillatingZ) && (ind_histZ >= 1*COV_WINDOW_SIZE))
+					{
+						pusedZ += dtZ2*rampZ;
+					}
 
 				// TODO: nominal throttle compensated for body angles cos?
 				thrust = (nominal_throttle) + pusedZ * errZ * MAX_PPRZ + testigainZ * of_titusmodule.sum_errZ * MAX_PPRZ;
@@ -644,8 +654,8 @@ void v_ctrl_module_run(bool in_flight)
 
 				// Log everything ////////////////////////////////////////////////////////////////////////
 
-				normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
-				thrust_history[ind_histZ % COV_WINDOW_SIZE] = normalized_thrust;
+				//					normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
+				//					thrust_history[ind_histZ % COV_WINDOW_SIZE] = normalized_thrust;
 				divergence_history[ind_histZ % COV_WINDOW_SIZE] = divergence;
 				int ind_past = (ind_histZ % COV_WINDOW_SIZE) - of_titusmodule.delay_steps;
 				while (ind_past < 0) { ind_past += COV_WINDOW_SIZE; }
@@ -654,309 +664,325 @@ void v_ctrl_module_run(bool in_flight)
 				ind_histZ++;
 
 				// only take covariance into account if there are enough samples in the histories:
-				if (ind_histZ >= COV_WINDOW_SIZE) {
+//				if (ind_histZ >= 1*COV_WINDOW_SIZE+of_titusmodule.delay_steps) {
+					if (ind_histZ >= 1*COV_WINDOW_SIZE) {
 
-					//						cov_divZ = get_cov(thrust_history, divergence_history, COV_WINDOW_SIZE);
-					cov_divZ = get_cov(past_divergence_history, divergence_history, COV_WINDOW_SIZE);
-				}
-				else {
-					cov_divZ = 0;
-				}
-
-				// Check for oscillations ////////////////////////////////////////////////////////////////////
-				//	TODO: Remove FABS?
-				if(fabs(cov_divZ)>covZthreshold)
-				{
-					if(!oscillatingZ)
-					{
-						oscillatingZ = 1;
-						algoXY = 1;
-						//						heightEstimate = (20/3 * pusedZ) - 19/6;
-						pusedZ = pusedZ*0.75;
-
-
-						// Test setting XY
-						//						pusedX = 0.75*(0.1*heightEstimate +0.35);
-						//						pusedY = 0.75*(0.1*heightEstimate +0.35);
-						//						oscillatingX = 1;
-						//						oscillatingY = 1;
-
-
+						//						cov_divZ = get_cov(thrust_history, divergence_history, COV_WINDOW_SIZE);
+						cov_divZ = get_cov(past_divergence_history, divergence_history, COV_WINDOW_SIZE);
 					}
-				}
+					else {
+						cov_divZ = 0;
+					}
 
-				// Set thrust ///////////////////////////////////////////////////////////////////////////
-				stabilization_cmd[COMMAND_THRUST] = thrust;
+					// Check for oscillations ////////////////////////////////////////////////////////////////////
+					//	TODO: Remove FABS?
+					if(fabs(cov_divZ)>covZthreshold)
+					{
+						if(!oscillatingZ)
+						{
+							oscillatingZ = 1;
+							algoXY = 1;
+							//						heightEstimate = (20/3 * pusedZ) - 19/6;
+							printf("Height,%f,Gain,%f\n",height,pusedZ);
+							pusedZ = pusedZ*0.75;
+
+
+							// Test setting XY
+							//						pusedX = 0.75*(0.1*heightEstimate +0.35);
+							//						pusedY = 0.75*(0.1*heightEstimate +0.35);
+							//						oscillatingX = 1;
+							//						oscillatingY = 1;
+
+
+						}
+					}
+
+					// Add Noise? ///////////////////////////////////////////
+					thrustNoise =  (int) round( ( (double) rand() ) / ( (double) RAND_MAX)*(200) ) -100;
+
+
+
+
+					// Set thrust ///////////////////////////////////////////////////////////////////////////
+					//					previous_message_nrZ = vision_message_nr;
+					//				}
+					stabilization_cmd[COMMAND_THRUST] = thrust + thrustNoise;
+
+				}
 			}
+			else
+			{
+				thrust = nominalthrust * MAX_PPRZ;
+			}
+		}
+	}
+
+	////////////////////////////////////////////////////////////////////
+	// Call our controllers
+	// Implement own Horizontal loops
+	void guidance_h_module_init(void)
+	{
+		h_ctrl_module_init();
+	}
+
+	void guidance_h_module_enter(void)
+	{
+		// run Enter module code here
+		stabilization_attitude_enter();
+
+		// Set current psi as heading
+		test_sp_eu.psi = stateGetNedToBodyEulers_i()->psi;
+
+		VECT2_COPY(titusmodule_ref_pos, *stateGetPositionNed_i());
+		//	stabilization_attitude_set_failsafe_setpoint();
+
+		// reset integrator
+		of_titusmodule.sum_errX = 0.0f;
+
+		oscillatingX = 0;
+		oscillatingY = 0;
+		ind_histXY = 0;
+		pusedX = startPusedX;
+		pusedY = startPusedY;
+		cov_divX = 0;
+		cov_divY = 0;
+
+		ventralX = of_titusmodule.ventralflow_setpoint;
+		ventralY = of_titusmodule.ventralflow_setpoint;
+
+		dtXY = 0.0f;
+		dtXY2 = 0.0f;
+
+		flowX = 0;
+		flowY = 0;
+
+		struct timespec spec;
+		clock_gettime(CLOCK_REALTIME, &spec);
+		previous_timeXY = spec.tv_nsec / 1.0E6;
+		vision_message_nr = 1;
+		previous_message_nrXY = 0;
+		previous_message_nrZ  = 0;
+
+		for (int i = 0; i < COV_WINDOW_SIZE; i++) {
+			ventralX_history[i] = 0;
+			ventralY_history[i] = 0;
+			past_ventralX_history[i]=0;
+			past_ventralY_history[i]=0;
+		}
+
+		inFFtakeoff = performFFtakeoff;
+
+		algoXY = performXY;
+	}
+
+	void guidance_h_module_run(bool in_flight)
+	{
+		if(electrical.bat_low)
+		{
+			autopilot_static_set_mode(AP_MODE_NAV);
 		}
 		else
 		{
-			thrust = nominalthrust * MAX_PPRZ;
+			h_ctrl_module_run(in_flight);
+
+			stabilization_attitude_run(in_flight);
 		}
 	}
-}
 
-////////////////////////////////////////////////////////////////////
-// Call our controllers
-// Implement own Horizontal loops
-void guidance_h_module_init(void)
-{
-	h_ctrl_module_init();
-}
 
-void guidance_h_module_enter(void)
-{
-	// run Enter module code here
-	stabilization_attitude_enter();
 
-	// Set current psi as heading
-	test_sp_eu.psi = stateGetNedToBodyEulers_i()->psi;
-
-	VECT2_COPY(titusmodule_ref_pos, *stateGetPositionNed_i());
-	//	stabilization_attitude_set_failsafe_setpoint();
-
-	// reset integrator
-	of_titusmodule.sum_errX = 0.0f;
-
-	oscillatingX = 0;
-	oscillatingY = 0;
-	ind_histXY = 0;
-	pusedX = startPusedX;
-	pusedY = startPusedY;
-	cov_divX = 0;
-	cov_divY = 0;
-
-	ventralX = of_titusmodule.ventralflow_setpoint;
-	ventralY = of_titusmodule.ventralflow_setpoint;
-
-	dtXY = 0.0f;
-	dtXY2 = 0.0f;
-
-	flowX = 0;
-	flowY = 0;
-
-	struct timespec spec;
-	clock_gettime(CLOCK_REALTIME, &spec);
-	previous_timeXY = spec.tv_nsec / 1.0E6;
-	vision_message_nr = 1;
-	previous_message_nrXY = 0;
-	previous_message_nrZ  = 0;
-
-	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
-		ventralX_history[i] = 0;
-		ventralY_history[i] = 0;
-	}
-
-	inFFtakeoff = performFFtakeoff;
-
-	algoXY = performXY;
-}
-
-void guidance_h_module_run(bool in_flight)
-{
-	if(electrical.bat_low)
+	// Implement own Vertical loops
+	void guidance_v_module_init(void)
 	{
-		autopilot_static_set_mode(AP_MODE_NAV);
+		// initialization of your custom vertical controller goes here
+		v_ctrl_module_init();
 	}
-	else
+
+	void guidance_v_module_enter(void)
 	{
-		h_ctrl_module_run(in_flight);
+		// reset integrator
+		of_titusmodule.sum_errZ = 0.0f;
 
-		stabilization_attitude_run(in_flight);
-	}
-}
+		oscillatingZ = 0;
+		ind_histZ = 0;
+		pusedZ = startPusedZ;
+		cov_divZ = 0;
+		divergence = of_titusmodule.divergence_setpoint;
+		dtZ = 0.0f;
+		dtZ2 = 0.0f;
+		struct timespec spec;
+		clock_gettime(CLOCK_REALTIME, &spec);
+		previous_timeZ = spec.tv_nsec / 1.0E6;
+		vision_message_nr = 1;
+		previous_message_nrXY = 0;
+		previous_message_nrZ  = 0;
+		for (int i = 0; i < COV_WINDOW_SIZE; i++) {
+			//		thrust_history[i] = 0;
+			divergence_history[i] = 0;
+			past_divergence_history[i]=0;
+		}
 
+		nominalthrust = OptiThrust/MAX_PPRZ;
+		stabilization_cmd[COMMAND_THRUST] = nominalthrust * MAX_PPRZ;
 
-
-// Implement own Vertical loops
-void guidance_v_module_init(void)
-{
-	// initialization of your custom vertical controller goes here
-	v_ctrl_module_init();
-}
-
-void guidance_v_module_enter(void)
-{
-	// reset integrator
-	of_titusmodule.sum_errZ = 0.0f;
-
-	oscillatingZ = 0;
-	ind_histZ = 0;
-	pusedZ = startPusedZ;
-	cov_divZ = 0;
-	divergence = of_titusmodule.divergence_setpoint;
-	dtZ = 0.0f;
-	dtZ2 = 0.0f;
-	struct timespec spec;
-	clock_gettime(CLOCK_REALTIME, &spec);
-	previous_timeZ = spec.tv_nsec / 1.0E6;
-	vision_message_nr = 1;
-	previous_message_nrXY = 0;
-	previous_message_nrZ  = 0;
-	for (int i = 0; i < COV_WINDOW_SIZE; i++) {
-		thrust_history[i] = 0;
-		divergence_history[i] = 0;
+		setFFtime = 0;
+		inFFtakeoff = performFFtakeoff;
+		algoZ = performZ;
 	}
 
-
-	nominalthrust = OptiThrust/MAX_PPRZ;
-	stabilization_cmd[COMMAND_THRUST] = nominalthrust * MAX_PPRZ;
-
-	setFFtime = 0;
-	inFFtakeoff = performFFtakeoff;
-	algoZ = performZ;
-}
-
-void guidance_v_module_run(bool in_flight)
-{
-	if(electrical.bat_low)
+	void guidance_v_module_run(bool in_flight)
 	{
-		autopilot_static_set_mode(AP_MODE_NAV);
+		if(electrical.bat_low)
+		{
+			autopilot_static_set_mode(AP_MODE_NAV);
+		}
+		else
+		{
+			height = (stateGetPositionEnu_i()->z)*0.0039063;
+			// your vertical controller goes here
+			v_ctrl_module_run(in_flight);
+		}
 	}
-	else
+
+
+	/**
+	 * Get the desired Euler angles for optitrack stabilization
+	 * @param[in] Boolean whether to Phi or not
+	 * @param[in] Boolean whether to Theta or not
+	 * @param[out] The desired Euler angles
+	 */
+	void computeOptiTrack(bool phi,bool theta,struct Int32Eulers *opti_sp_eu)
 	{
-		// your vertical controller goes here
-		v_ctrl_module_run(in_flight);
+
+		bool optiVelOnly;
+		optiVelOnly = 0;
+
+		// Heading is going wrong?
+		int32_t psi = stateGetNedToBodyEulers_i()->psi;
+
+		struct NedCoor_i vel_from_GPS;
+		struct NedCoor_i pos_from_GPS;
+
+		vel_from_GPS = *stateGetSpeedNed_i();
+		pos_from_GPS = *stateGetPositionNed_i();
+
+		/* maximum bank angle: default 20 deg, max 40 deg*/
+		static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
+				BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
+		static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
+
+		/* compute position error    */
+		VECT2_DIFF(titusmodule_pos_err, titusmodule_ref_pos, pos_from_GPS);
+		/* saturate it               */
+		VECT2_STRIM(titusmodule_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
+
+		struct Int32Vect2 ref_speed;
+		ref_speed.x = 0;
+		ref_speed.y = 0;
+
+		/* compute speed error    */
+		VECT2_DIFF(titusmodule_speed_err, ref_speed, vel_from_GPS);
+		/* saturate it               */
+		VECT2_STRIM(titusmodule_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
+
+		if(optiVelOnly)
+		{
+			titusmodule_pos_err.x = 0;
+			titusmodule_pos_err.y = 0;
+		}
+
+		/* run PID */
+		titusmodule_cmd_earth.x =
+				((GUIDANCE_H_PGAIN * titusmodule_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+				((GUIDANCE_H_DGAIN * (titusmodule_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+		titusmodule_cmd_earth.y =
+				((GUIDANCE_H_PGAIN * titusmodule_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+				((GUIDANCE_H_DGAIN * (titusmodule_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+
+		/* trim max bank angle from PD */
+		VECT2_STRIM(titusmodule_cmd_earth, -traj_max_bank, traj_max_bank);
+
+		titusmodule_trim_att_integrator.x += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.x);
+		titusmodule_trim_att_integrator.y += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.y);
+		/* saturate it  */
+		VECT2_STRIM(titusmodule_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
+				(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
+
+		/* add it to the command */
+		titusmodule_cmd_earth.x += (titusmodule_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+		titusmodule_cmd_earth.y += (titusmodule_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+
+		VECT2_STRIM(titusmodule_cmd_earth, -total_max_bank, total_max_bank);
+
+		// Compute Angle Setpoints - Taken from Stab_att_quat
+		int32_t s_psi, c_psi;
+		PPRZ_ITRIG_SIN(s_psi, psi);
+		PPRZ_ITRIG_COS(c_psi, psi);
+
+		if(phi)
+		{
+			opti_sp_eu->phi = (-s_psi * titusmodule_cmd_earth.x + c_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+		}
+		if(theta)
+		{
+			opti_sp_eu->theta= -(c_psi * titusmodule_cmd_earth.x + s_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+		}
 	}
-}
 
-
-/**
- * Get the desired Euler angles for optitrack stabilization
- * @param[in] Boolean whether to Phi or not
- * @param[in] Boolean whether to Theta or not
- * @param[out] The desired Euler angles
- */
-void computeOptiTrack(bool phi,bool theta,struct Int32Eulers *opti_sp_eu)
-{
-
-	bool optiVelOnly;
-	optiVelOnly = 0;
-
-	// Heading is going wrong?
-	int32_t psi = stateGetNedToBodyEulers_i()->psi;
-
-	struct NedCoor_i vel_from_GPS;
-	struct NedCoor_i pos_from_GPS;
-
-	vel_from_GPS = *stateGetSpeedNed_i();
-	pos_from_GPS = *stateGetPositionNed_i();
-
-	/* maximum bank angle: default 20 deg, max 40 deg*/
-	static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
-			BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
-	static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
-
-	/* compute position error    */
-	VECT2_DIFF(titusmodule_pos_err, titusmodule_ref_pos, pos_from_GPS);
-	/* saturate it               */
-	VECT2_STRIM(titusmodule_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
-
-	struct Int32Vect2 ref_speed;
-	ref_speed.x = 0;
-	ref_speed.y = 0;
-
-	/* compute speed error    */
-	VECT2_DIFF(titusmodule_speed_err, ref_speed, vel_from_GPS);
-	/* saturate it               */
-	VECT2_STRIM(titusmodule_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
-
-	if(optiVelOnly)
+	/**
+	 * Get the mean value of an array
+	 * @param[out] mean The mean value
+	 * @param[in] *a The array
+	 * @param[in] n Number of elements in the array
+	 */
+	float get_mean_array(float *a, int n_elements)
 	{
-		titusmodule_pos_err.x = 0;
-		titusmodule_pos_err.y = 0;
+		// determine the mean for the vector:
+		float mean = 0;
+		for (unsigned int i = 0; i < n_elements; i++) {
+			mean += a[i];
+		}
+		mean /= n_elements;
+
+		return mean;
 	}
 
-	/* run PID */
-	titusmodule_cmd_earth.x =
-			((GUIDANCE_H_PGAIN * titusmodule_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
-			((GUIDANCE_H_DGAIN * (titusmodule_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
-	titusmodule_cmd_earth.y =
-			((GUIDANCE_H_PGAIN * titusmodule_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
-			((GUIDANCE_H_DGAIN * (titusmodule_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
-
-	/* trim max bank angle from PD */
-	VECT2_STRIM(titusmodule_cmd_earth, -traj_max_bank, traj_max_bank);
-
-	titusmodule_trim_att_integrator.x += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.x);
-	titusmodule_trim_att_integrator.y += (GUIDANCE_H_IGAIN * titusmodule_cmd_earth.y);
-	/* saturate it  */
-	VECT2_STRIM(titusmodule_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
-			(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
-
-	/* add it to the command */
-	titusmodule_cmd_earth.x += (titusmodule_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
-	titusmodule_cmd_earth.y += (titusmodule_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
-
-	VECT2_STRIM(titusmodule_cmd_earth, -total_max_bank, total_max_bank);
-
-	// Compute Angle Setpoints - Taken from Stab_att_quat
-	int32_t s_psi, c_psi;
-	PPRZ_ITRIG_SIN(s_psi, psi);
-	PPRZ_ITRIG_COS(c_psi, psi);
-
-	if(phi)
+	/**
+	 * Get the covariance of two arrays
+	 * @param[out] cov The covariance
+	 * @param[in] *a The first array
+	 * @param[in] *b The second array
+	 * @param[in] n Number of elements in the arrays
+	 */
+	float get_cov(float *a, float *b, int n_elements)
 	{
-		opti_sp_eu->phi = (-s_psi * titusmodule_cmd_earth.x + c_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+		// Determine means for each vector:
+		float mean_a = get_mean_array(a, n_elements);
+		float mean_b = get_mean_array(b, n_elements);
+
+		// Determine the covariance:
+		float cov = 0;
+		for (unsigned int i = 0; i < n_elements; i++) {
+			cov += (a[i] - mean_a) * (b[i] - mean_b);
+		}
+
+		cov /= n_elements;
+
+		return cov;
 	}
-	if(theta)
+
+
+
+	static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div,float regular_div, float dist)
 	{
-		opti_sp_eu->theta= -(c_psi * titusmodule_cmd_earth.x + s_psi * titusmodule_cmd_earth.y) >> INT32_TRIG_FRAC;
+		//	height = dist;
+
+		flowX = flow_x;
+		flowY = flow_y;
+
+		regular_divergence = regular_div;
+		size_divergence = size_div;
+
+		vision_message_nr++;
+		if (vision_message_nr > 10) { vision_message_nr = 0; }
 	}
-}
-
-/**
- * Get the mean value of an array
- * @param[out] mean The mean value
- * @param[in] *a The array
- * @param[in] n Number of elements in the array
- */
-float get_mean_array(float *a, int n_elements)
-{
-	// determine the mean for the vector:
-	float mean = 0;
-	for (unsigned int i = 0; i < n_elements; i++) {
-		mean += a[i];
-	}
-	mean /= n_elements;
-
-	return mean;
-}
-
-/**
- * Get the covariance of two arrays
- * @param[out] cov The covariance
- * @param[in] *a The first array
- * @param[in] *b The second array
- * @param[in] n Number of elements in the arrays
- */
-float get_cov(float *a, float *b, int n_elements)
-{
-	// Determine means for each vector:
-	float mean_a = get_mean_array(a, n_elements);
-	float mean_b = get_mean_array(b, n_elements);
-
-	// Determine the covariance:
-	float cov = 0;
-	for (unsigned int i = 0; i < n_elements; i++) {
-		cov += (a[i] - mean_a) * (b[i] - mean_b);
-	}
-
-	cov /= n_elements;
-
-	return cov;
-}
-
-
-
-static void titus_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div,float regular_div, float dist)
-{
-	flowX = flow_x;
-	flowY = flow_y;
-
-	regular_divergence = regular_div;
-	size_divergence = size_div;
-
-	vision_message_nr++;
-	if (vision_message_nr > 10) { vision_message_nr = 0; }
-}

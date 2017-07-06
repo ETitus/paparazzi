@@ -2276,7 +2276,7 @@
 			<field name="cov_divX" type="float"> covariance of Ventral flow in X and past ventral flow in X</field>
 			<field name="cov_divY" type="float"> covariance of Ventral flow in Y and past ventral flow in Y</field>
 			<field name="cov_divZ" type="float"> covariance of divergence and past divergence</field>
-			<field name="sonar" type="float"> measurement from the sonar (mm)</field>
+			<field name="height" type="float"> measurement from OptiTrack</field>
 			<field name="errX" type="float"> Error in flow X</field>
 			<field name="errY" type="float"> Error in flow Y</field>
 			<field name="errZ" type="float"> Error in divergence</field>

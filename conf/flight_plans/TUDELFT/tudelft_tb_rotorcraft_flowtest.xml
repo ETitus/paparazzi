@@ -7,13 +7,13 @@
 		#include "subsystems/electrical.h"
 </header>
   <waypoints>
-    <waypoint name="HOME" x="0.2" y="-0.0"/>
-    <waypoint name="CLIMB" x="0.2" y="-0.0"/>
-    <waypoint name="GOAL" x="0.2" y="-0.0"/>
-    <waypoint name="STDBY" x="0.2" y="-0.0"/>
-    <waypoint name="TD" x="0.2" y="-0.0"/>
-    <waypoint alt="0.5" name="Left" x="0.2" y="-0.0"/>
-    <waypoint name="Right" x="0.2" y="-0.0"/>
+    <waypoint name="HOME" x="2.4" y="-1.2"/>
+    <waypoint name="CLIMB" x="2.4" y="-1.2"/>
+    <waypoint name="GOAL" x="2.4" y="-1.2"/>
+    <waypoint name="STDBY" x="2.4" y="-1.2"/>
+    <waypoint name="TD" x="2.4" y="-1.2"/>
+    <waypoint alt="0.5" name="Left" x="2.4" y="-1.2"/>
+    <waypoint name="Right" x="2.4" y="-1.2"/>
     <waypoint name="Front" x="-0.9" y="1.6"/>
     <waypoint name="Back" x="1.4" y="-1.8"/>
     <waypoint lat="51.9906213" lon="4.3768628" name="FA1"/>
@@ -31,7 +31,7 @@
   </sectors>
   <exceptions>
     <exception cond="!GpsFixValid() && !(nav_block == IndexOfBlock('Wait GPS')) && !(nav_block == IndexOfBlock('slowDecentLinkLoss'))" deroute="slowDecentLinkLoss"/>
-    <exception cond="electrical.bat_low && !(nav_block == IndexOfBlock('Wait GPS')) && !(nav_block == IndexOfBlock('Holding point')) && !(nav_block == IndexOfBlock('land')) && !(nav_block == IndexOfBlock('landed')) && !(nav_block == IndexOfBlock('flare')) && !(nav_block == IndexOfBlock('slowDecentLinkLoss'))" deroute="land"/>
+    <exception cond="electrical.bat_low && !(nav_block == IndexOfBlock('Wait GPS')) && !(nav_block == IndexOfBlock('Holding point')) && !(nav_block == IndexOfBlock('land')) && !(nav_block == IndexOfBlock('landed')) && !(nav_block == IndexOfBlock('flare')) && !(nav_block == IndexOfBlock('slowDecentLinkLoss'))" deroute="land_here"/>
   </exceptions>
   <blocks>
     <block name="Wait GPS">
@@ -43,6 +43,7 @@
       <attitude pitch="0" roll="0" throttle="0" until="FALSE" vmode="throttle"/>
     </block>
     <block name="Start Engine">
+      <call_once fun="NavSetWaypointHere(WP_Right)"/>
       <call_once fun="NavResurrect()"/>
       <attitude pitch="0" roll="0" throttle="0" until="FALSE" vmode="throttle"/>
     </block>
@@ -88,7 +89,7 @@
     <block name="StayGoal">
       <stay wp="GOAL"/>
     </block>
-    <block name="land here" strip_button="Land Here" strip_icon="land-right.png">
+    <block name="land_here" strip_button="Land Here" strip_icon="land-right.png">
       <call_once fun="NavSetWaypointHere(WP_TD)"/>
     </block>
     <block name="land">
