@@ -525,7 +525,7 @@ void h_ctrl_module_run(bool in_flight)
 			computeOptiTrack(!oscphi,!osctheta,&test_sp_eu);
 
 			// Due to toiletboiling, keep heading 0 for now
-			test_sp_eu.psi = 0;
+//			test_sp_eu.psi = 0;
 
 			// Run the stabilization mode
 			stabilization_attitude_set_rpy_setpoint_i(&test_sp_eu);
