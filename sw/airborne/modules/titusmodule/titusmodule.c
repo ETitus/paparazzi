@@ -620,35 +620,35 @@ void v_ctrl_module_run(bool in_flight)
 				// should be 0.6??????
 				of_landing_ctrl.lp_factor = 0.95;
 
-				// USE OPTITRACK HEIGHT
-//				of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
-				of_landing_ctrl.agl = (stateGetPositionEnu_i()->z)*0.0039063;
-				// else we get an immediate jump in divergence when switching on.
-				if (of_landing_ctrl.agl_lp < 1E-5 || ind_histZ == 0) {
-					of_landing_ctrl.agl_lp = of_landing_ctrl.agl;
-				}
-				if (fabs(of_landing_ctrl.agl - of_landing_ctrl.agl_lp) > 1.0f) {
-					// ignore outliers:
-					of_landing_ctrl.agl = of_landing_ctrl.agl_lp;
-				}
-				// calculate the new low-pass height and the velocity
-				lp_height = of_landing_ctrl.agl_lp * of_landing_ctrl.lp_factor + of_landing_ctrl.agl * (1.0f - of_landing_ctrl.lp_factor);
-
-				// only calculate velocity and divergence if dt is large enough:
-				if (dtZ > 0.0001f) {
-//					of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) / dtZ;
-					of_landing_ctrl.vel = (stateGetSpeedEnu_i()->z)*0.0000019;
-					of_landing_ctrl.agl_lp = lp_height;
-
-					// calculate the fake divergence:
-					if (of_landing_ctrl.agl_lp > 0.0001f) {
-						divergence2 = of_landing_ctrl.vel / of_landing_ctrl.agl_lp;
-					} else {
-						divergence2 = 1000.0f;
-						// perform no control with this value (keeping thrust the same)
-						return;
-					}
-				}
+				// USE OPTITRACK HEIGHT //////////////////////////////////////////////////////////////////////////
+////				of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
+//				of_landing_ctrl.agl = (stateGetPositionEnu_i()->z)*0.0039063;
+//				// else we get an immediate jump in divergence when switching on.
+//				if (of_landing_ctrl.agl_lp < 1E-5 || ind_histZ == 0) {
+//					of_landing_ctrl.agl_lp = of_landing_ctrl.agl;
+//				}
+//				if (fabs(of_landing_ctrl.agl - of_landing_ctrl.agl_lp) > 1.0f) {
+//					// ignore outliers:
+//					of_landing_ctrl.agl = of_landing_ctrl.agl_lp;
+//				}
+//				// calculate the new low-pass height and the velocity
+//				lp_height = of_landing_ctrl.agl_lp * of_landing_ctrl.lp_factor + of_landing_ctrl.agl * (1.0f - of_landing_ctrl.lp_factor);
+//
+//				// only calculate velocity and divergence if dt is large enough:
+//				if (dtZ > 0.0001f) {
+////					of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) / dtZ;
+//					of_landing_ctrl.vel = (stateGetSpeedEnu_i()->z)*0.0000019;
+//					of_landing_ctrl.agl_lp = lp_height;
+//
+//					// calculate the fake divergence:
+//					if (of_landing_ctrl.agl_lp > 0.0001f) {
+//						divergence2 = of_landing_ctrl.vel / of_landing_ctrl.agl_lp;
+//					} else {
+//						divergence2 = 1000.0f;
+//						// perform no control with this value (keeping thrust the same)
+//						return;
+//					}
+//				}
 
 
 				// Update and filter vision ////////////////////////////////////////////////////////////
@@ -679,8 +679,8 @@ void v_ctrl_module_run(bool in_flight)
 				}
 //				printf("%f,%f,%f,%f\n",divergence_vision,(stateGetPositionEnu_i()->z)*0.0039063/((stateGetSpeedEnu_i()->z)*0.0000019),divergence,divergence2);
 
-//				errZ = of_titusmodule.divergence_setpoint - divergence;
-				errZ = of_titusmodule.divergence_setpoint - divergence2;
+				errZ = of_titusmodule.divergence_setpoint - divergence;
+//				errZ = of_titusmodule.divergence_setpoint - divergence2;
 				of_titusmodule.sum_errZ += errZ;
 
 				// Increase gain ///////////////////////////////////////////////////////////////////////
