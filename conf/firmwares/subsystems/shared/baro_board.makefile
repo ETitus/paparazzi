@@ -47,6 +47,10 @@ else ifeq ($(BOARD), disco)
   BARO_BOARD_SRCS += peripherals/ms5611_i2c.c
   BARO_BOARD_SRCS += boards/baro_board_ms5611_i2c.c
 
+# Swing baro
+else ifeq ($(BOARD), swing)
+  BARO_BOARD_SRCS += $(SRC_BOARD)/baro_board.c
+
 # Lisa/M baro
 else ifeq ($(BOARD), lisa_m)
   ifeq ($(BOARD_VERSION), 1.0)
@@ -281,8 +285,12 @@ endif
 ap.CFLAGS += $(BARO_BOARD_CFLAGS)
 ap.srcs += $(BARO_BOARD_SRCS)
 
-# don't use for NPS
+# don't use for NPS or HITL
 ifeq ($(TARGET),nps)
+$(TARGET).CFLAGS += -DUSE_BARO_BOARD=FALSE
+endif
+
+ifeq ($(TARGET),hitl)
 $(TARGET).CFLAGS += -DUSE_BARO_BOARD=FALSE
 endif
 
