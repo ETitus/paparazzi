@@ -89,6 +89,29 @@ struct OpticalFlowTitus {
 	float sum_errZ;                ///< integration of the error for I-gain in Z axis
 };
 
+struct OpticalFlowLanding {
+  float agl;                    ///< agl = height from sonar (only used when using "fake" divergence)
+  float agl_lp;                 ///< low-pass version of agl
+  float lp_factor;              ///< low-pass factor in [0,1], with 0 purely using the current measurement
+  float vel;                    ///< vertical velocity as determined with sonar (only used when using "fake" divergence)
+  float divergence_setpoint;    ///< setpoint for constant divergence approach
+  float pgain;                  ///< P-gain for constant divergence control (from divergence error to thrust)
+  float igain;                  ///< I-gain for constant divergence control
+  float dgain;                  ///< D-gain for constant divergence control
+  float sum_err;                ///< integration of the error for I-gain
+  float nominal_thrust;         ///< nominal thrust around which the PID-control operates
+  int VISION_METHOD;            ///< whether to use vision (1) or Optitrack / sonar (0)
+  int CONTROL_METHOD;           ///< type of divergence control: 0 = fixed gain, 1 = adaptive gain
+  float cov_set_point;          ///< for adaptive gain control, setpoint of the covariance (oscillations)
+  float cov_limit;              ///< for fixed gain control, what is the cov limit triggering the landing
+  float pgain_adaptive;         ///< P-gain for adaptive gain control
+  float igain_adaptive;         ///< I-gain for adaptive gain control
+  float dgain_adaptive;         ///< D-gain for adaptive gain control
+  int COV_METHOD;               ///< method to calculate the covariance: between thrust and div (0) or div and div past (1)
+  int delay_steps;              ///< number of delay steps for div past
+};
+
+
 #endif
 
 
