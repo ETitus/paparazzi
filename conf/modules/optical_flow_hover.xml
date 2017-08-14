@@ -1,0 +1,22 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="optical_flow_hover" dir="ctrl">
+  <doc>
+    <description>
+      Optical flow Hover.
+
+	  This module stabilizes the quadcopter in all three axis using only the camera and the IMU
+          </description>
+     </doc>
+  <settings>
+  </settings>
+
+  <header>
+    <file name="optical_flow_hover.h"/>
+  </header>
+
+  <makefile target="ap">
+    <file name="optical_flow_hover.c"/>
+  </makefile>
+
+</module>
