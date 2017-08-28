@@ -31,10 +31,10 @@
 //#include "math/pprz_algebra_int.h"
 
 // File logger
-extern void titusmodule_init(void);
-extern void titusmodule_start(void);
-extern void titusmodule_periodic(void);
-extern void titusmodule_stop(void);
+extern void optical_flow_hover_init(void);
+extern void optical_flow_hover_start(void);
+extern void optical_flow_hover_periodic(void);
+extern void optical_flow_hover_stop(void);
 
 // Guidance own =            MODULE
 // Without optitrack set to: ATTITUDE

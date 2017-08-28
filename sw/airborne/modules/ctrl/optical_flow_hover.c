@@ -1,450 +1,721 @@
-/*
- * Copyright (C) 2015 Guido de Croon.
- *
- * This file is part of Paparazzi.
- *
- * Paparazzi is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
- *
- * Paparazzi is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with Paparazzi; see the file COPYING.  If not, see
- * <http://www.gnu.org/licenses/>.
- */
+#include "optical_flow_hover.h"
 
-
-// Includes:
-#include "modules/ctrl/optical_flow_hover.h"
-
-// used for automated landing:
-#include "autopilot.h"
-#include "subsystems/navigation/common_flight_plan.h"
-#include "subsystems/datalink/telemetry.h"
-// for measuring time
-#include "mcu_periph/sys_time.h"
-#include "generated/airframe.h"
+//#include "generated/airframe.h"
 #include "paparazzi.h"
 #include "subsystems/abi.h"
 #include "firmwares/rotorcraft/stabilization.h"
-#include "state.h"
-
-// Auxiliary functions:
-// supporting functions for cov calculation:
-float get_cov(float *a, float *b, int n_elements);
-float get_mean_array(float *a, int n_elements);
-// common functions for different landing strategies:
-void set_cov_div(int32_t thrust);
-int32_t PID_divergence_control(float divergence_setpoint, float P, float I, float D, float *err);
-void update_errors(float error);
-void final_landing_procedure(void);
-// resetting all variables to be called for instance when starting up / re-entering module
-void reset_all_vars(void);
+#include "firmwares/rotorcraft/stabilization/stabilization_attitude.h"
+//#include "firmwares/rotorcraft/guidance/guidance_v_adapt.h"
+#include "subsystems/electrical.h"
+#include <stdio.h>
 
 
-/* Default sonar/agl to use */
-#ifndef OPTICAL_FLOW_HOVER_AGL_ID
-#define OPTICAL_FLOW_HOVER_AGL_ID ABI_BROADCAST
-#endif
-PRINT_CONFIG_VAR(OPTICAL_FLOW_HOVER_AGL_ID)
+#include "subsystems/datalink/telemetry.h"
+//
+//// for measuring time
+#include "mcu_periph/sys_time.h"
+//
+// Additional math functions
+#include "math/pprz_stat.h"
+
 /* Use optical flow estimates */
-#ifndef OPTICAL_FLOW_LANDING_OPTICAL_FLOW_ID
-#define OPTICAL_FLOW_LANDING_OPTICAL_FLOW_ID ABI_BROADCAST
+#ifndef OFH_OPTICAL_FLOW_ID
+#define OFH_OPTICAL_FLOW_ID ABI_BROADCAST
 #endif
-PRINT_CONFIG_VAR(OPTICAL_FLOW_LANDING_OPTICAL_FLOW_ID)
+PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
+
+#ifndef OFH_LP_CONST
+#define OFH_LP_CONST 0.75
+#endif
+
+// number of time steps used for calculating the covariance (oscillations) and the delay steps
+#ifndef OFH_COV_WINDOW_SIZE
+#define OFH_COV_WINDOW_SIZE 30
+#endif
+
+#ifndef OFH_COV_DELAY_STEPS
+#define OFH_COV_DELAY_STEPS 15
+#endif
+
+#ifndef OFH_PGAINZ
+#define OFH_PGAINZ 0.40
+#endif
+
+#ifndef OFH_IGAINZ
+#define OFH_IGAINZ 0.01
+#endif
+
+#ifndef OFH_DGAINZ
+#define OFH_DGAINZ 0.0
+#endif
+
+#ifndef OFH_RAMPZ
+#define OFH_RAMPZ 1.0
+#endif
+
+#ifndef OFH_PGAINX
+#define OFH_PGAINX 0.40
+#endif
+
+#ifndef OFH_IGAINX
+#define OFH_IGAINX 0.01
+#endif
+
+#ifndef OFH_DGAINX
+#define OFH_DGAINX 0.0
+#endif
+
+#ifndef OFH_PGAINY
+#define OFH_PGAINY 0.40
+#endif
+
+#ifndef OFH_IGAINY
+#define OFH_IGAINY 0.01
+#endif
+
+#ifndef OFH_DGAINY
+#define OFH_DGAINY 0.0
+#endif
+
+#ifndef OFH_RAMPXY
+#define OFH_RAMPXY 1.0
+#endif
+
+#ifndef OFH_REDUCTIONXY
+#define OFH_REDUCTIONXY 0.75
+#endif
+
+#ifndef OFH_REDUCTIONZ
+#define OFH_REDUCTIONZ 0.75
+#endif
+
+#ifndef OFH_COVDIV_SETPOINT
+#define OFH_COVDIV_SETPOINT 0.003
+#endif
+
+#ifndef OFH_COVFLOW_SETPOINT
+#define OFH_COVFLOW_SETPOINT 0.003
+#endif
+// variables retained between module calls
+float vision_time,  prev_vision_timeXY, prev_vision_timeZ;
+
+bool oscillatingX;
+bool oscillatingY;
+int16_t flowX;
+int16_t flowY;
+uint32_t ind_histXY;
+uint8_t cov_array_filledXY;
+int32_t cov_flowX = 0;
+int32_t cov_flowY = 0;
+int32_t	flowX_history[OFH_COV_WINDOW_SIZE];
+int32_t	flowY_history[OFH_COV_WINDOW_SIZE];
+int32_t past_flowX_history[OFH_COV_WINDOW_SIZE];
+int32_t	past_flowY_history[OFH_COV_WINDOW_SIZE];
+
+float pusedX;
+float iusedX;
+float dusedX;
+float pusedY;
+float iusedY;
+float dusedY;
+
+// Stabilizing commands
+struct Int32Eulers ofh_sp_eu;
+
+int32_t phi_des;
+int32_t theta_des;
+
+#define MAXBANK 25
 
 
 
+bool oscillatingZ;
+float divergence_vision;
+float regular_divergence;
+float size_divergence;
+float thrust_history[OFH_COV_WINDOW_SIZE];
+float divergence_history[OFH_COV_WINDOW_SIZE];
+float past_divergence_history[OFH_COV_WINDOW_SIZE];
+uint32_t ind_histZ;
+uint8_t cov_array_filledZ;
+float normalized_thrust;
+float cov_divZ;
+int32_t thrust_set;
+
+float pusedZ;
+float iusedZ;
+float dusedZ;
+
+
+float height;
+
+// The optical flow ABI event
+static abi_event optical_flow_ev;
+
+// struct containing most relevant parameters
+struct OpticalFlowHover of_hover_ctrl;
+
+// sending the divergence message to the ground station:
+
+
+/// Function definitions
+// Callback function of the optical flow estimate:
+void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div,float regular_div, float dist);
+
+// common functions for different hover strategies:
+static void set_cov_div(int32_t thrust);
+static void set_cov_flow(void);
+static int32_t PID_divergence_control(float divergence_setpoint, float P, float I, float D, float dt);
+float PID_flow_control(float setpoint, float P, float I, float D, float dt, bool phitheta);
+static void update_errors(float error, float dt, uint8_t mode);
+
+// resetting all variables to be called for instance when starting up / re-entering module
+static void reset_horizontal_vars(void);
+static void reset_vertical_vars(void);
 void vertical_ctrl_module_init(void);
 void vertical_ctrl_module_run(bool in_flight);
+void horizontal_ctrl_module_init(void);
+void horizontal_ctrl_module_run(bool in_flight);
+
+
+// Compute OptiTrack stabilization for 1/2 axes
+void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu);
+#ifndef GH_GAIN_SCALE
+#define GH_GAIN_SCALE 2
+#endif
+#ifndef MAX_POS_ERR
+#define MAX_POS_ERR POS_BFP_OF_REAL(16.)
+#endif
+#ifndef MAX_SPEED_ERR
+#define MAX_SPEED_ERR SPEED_BFP_OF_REAL(16.)
+#endif
+struct Int32Vect2 of_landing_pos_err;
+struct Int32Vect2 of_landing_speed_err;
+struct Int32Vect2 of_landing_ref_pos;
+struct Int32Vect2 of_landing_trim_att_integrator;
+struct Int32Vect2 of_landing_cmd_earth;
+
+
+
+
+
+// Temporary stuff depending whether it works or not
+uint32_t elc_time_start;
+int32_t count_covdiv;
+float lp_cov_div;
+
+
+
+
+
+
+
+
+
+
+
+
+
+// sending the divergence message to the ground station:
+static void send_optical_flow_hover(struct transport_tx *trans, struct link_device *dev)
+{
+	pprz_msg_send_OPTICAL_FLOW_HOVER(trans, dev, AC_ID,&(of_hover_ctrl.flowX),&(of_hover_ctrl.flowY),&(of_hover_ctrl.divergence),
+			&cov_flowX,&cov_flowY,&cov_divZ,&pusedX,&pusedY,&pusedZ,&(of_hover_ctrl.sum_errX),&(of_hover_ctrl.sum_errY),&(of_hover_ctrl.sum_errZ),
+			&thrust_set,&phi_des,&theta_des,&height);
+}
+
+
+// Init the optical flow hover module
+void optical_flow_hover_init()
+{
+	of_hover_ctrl.lp_const = OFH_LP_CONST;
+	Bound(of_hover_ctrl.lp_const, 0.001f, 1.f);
+	of_hover_ctrl.delay_steps = OFH_COV_DELAY_STEPS;
+	of_hover_ctrl.window_size = OFH_COV_WINDOW_SIZE;
+	of_hover_ctrl.ofmethode = OPTICFLOW_METHOD;
+
+	of_hover_ctrl.divergence_setpoint = 0.0f;
+
+	of_hover_ctrl.pgainZ = OFH_PGAINZ;
+	of_hover_ctrl.igainZ = OFH_IGAINZ;
+	of_hover_ctrl.dgainZ = OFH_DGAINZ;
+	of_hover_ctrl.rampZ  = OFH_RAMPZ;
+
+	of_hover_ctrl.pgainX = OFH_PGAINX;
+	of_hover_ctrl.igainX = OFH_IGAINX;
+	of_hover_ctrl.dgainX = OFH_DGAINX;
+
+	of_hover_ctrl.pgainY = OFH_PGAINY;
+	of_hover_ctrl.igainY = OFH_IGAINY;
+	of_hover_ctrl.dgainY = OFH_DGAINY;
+
+	of_hover_ctrl.rampXY  = OFH_RAMPXY;
+
+	of_hover_ctrl.reduction_factorXY = OFH_REDUCTIONXY;
+	of_hover_ctrl.reduction_factorXY = OFH_REDUCTIONXY;
+
+	of_hover_ctrl.covFlow_set_point = OFH_COVFLOW_SETPOINT;
+	of_hover_ctrl.covDiv_set_point  = OFH_COVDIV_SETPOINT;
+
+	reset_horizontal_vars();
+	reset_vertical_vars();
+
+	// Subscribe to the optical flow estimator:
+	AbiBindMsgOPTICAL_FLOW(OFH_OPTICAL_FLOW_ID, &optical_flow_ev, ofh_optical_flow_cb);
+
+	// register telemetry:
+	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_OPTICAL_FLOW_HOVER, send_optical_flow_hover);
+}
+
+// Start the optical flow hover module
+void optical_flow_hover_start(void)
+{
+
+}
+
+// Run the optical flow hover module
+void optical_flow_hover_periodic(void)
+{
+
+}
+
+// Stop the optical flow hover module
+void optical_flow_hover_stop(void)
+{
+
+}
+
+
 
 /**
- * Initialize the optical flow landing module
+ * Initialize the vertical optical flow hover module
  */
 void vertical_ctrl_module_init(void)
 {
+	// filling the of_hover_ctrl struct with default values:
+	reset_vertical_vars();
+
 
 }
 
 /**
- * Reset all variables:
+ * Initialize the horizontal optical flow hover module
  */
-void reset_all_vars()
+void horizontal_ctrl_module_init(void)
 {
+	// filling the of_hover_ctrl struct with default values:
+	reset_horizontal_vars();
 
-  int i;
-  of_landing_ctrl.sum_err = 0;
-  of_landing_ctrl.d_err = 0;
-  stabilization_cmd[COMMAND_THRUST] = 0;
-  of_landing_ctrl.agl_lp = 0;
-  cov_div = 0.0f; // of_landing_ctrl.cov_set_point;
-  normalized_thrust = 0.0f;
-  dt = 0.0f;
-  previous_err = 0.0f;
-  previous_cov_err = 0.0f;
-  divergence = of_landing_ctrl.divergence_setpoint;
-  previous_time = get_sys_time_msec();
-  vision_message_nr = 1;
-  previous_message_nr = 0;
-  ind_hist = 0;
-  for (i = 0; i < MAX_COV_WINDOW_SIZE; i++) {
-    thrust_history[i] = 0;
-    divergence_history[i] = 0;
-    dt_history[i] = 0;
-  }
-  landing = 0;
-  elc_phase = 0;
-  count_covdiv = 0;
-  lp_cov_div = 0.0f;
+
 }
 
 /**
- * Run the optical flow landing module
+ * Reset all horizontal variables:
  */
+static void reset_horizontal_vars(void)
+{
+	oscillatingX = 0;
+	oscillatingY = 0;
+	flowX = 0;
+	flowY = 0;
 
+	of_hover_ctrl.sum_errX = 0;
+	of_hover_ctrl.d_errX = 0;
+	of_hover_ctrl.previous_errX = 0;
+
+	of_hover_ctrl.sum_errY = 0;
+	of_hover_ctrl.d_errY = 0;
+	of_hover_ctrl.previous_errY = 0;
+
+	pusedX = of_hover_ctrl.pgainX;
+	iusedX = of_hover_ctrl.igainX;
+	dusedX = of_hover_ctrl.dgainX;
+
+	pusedY = of_hover_ctrl.pgainY;
+	iusedY = of_hover_ctrl.igainY;
+	dusedY = of_hover_ctrl.dgainY;
+
+	phi_des = 0;
+	theta_des = 0;
+
+	ofh_sp_eu.phi = phi_des;
+	ofh_sp_eu.phi = theta_des;
+
+	ind_histXY = 0;
+	cov_array_filledXY = 0;
+
+	cov_flowX = 0;
+	cov_flowY = 0;
+
+	for(uint8_t i=0;i<of_hover_ctrl.window_size;i++)
+	{
+		flowX_history[i] = 0;
+		flowY_history[i] = 0;
+		past_flowX_history[i] = 0;
+		past_flowY_history[i] = 0;
+	}
+
+	vision_time = get_sys_time_float();
+	prev_vision_timeXY = vision_time;
+}
+
+/**
+ * Reset all vertical variables:
+ */
+static void reset_vertical_vars(void)
+{
+	oscillatingZ = 0;
+
+	regular_divergence = 0;
+	size_divergence = 0;
+
+	for(uint8_t i=0;i<of_hover_ctrl.window_size;i++)
+	{
+		divergence_history[i] = 0;
+		thrust_history[i] = 0;
+		past_divergence_history[i] = 0;
+	}
+
+	normalized_thrust = 0;
+
+	ind_histZ = 0;
+
+	pusedZ = of_hover_ctrl.pgainZ;
+	iusedZ = of_hover_ctrl.igainZ;
+	dusedZ = of_hover_ctrl.dgainZ;
+
+
+
+
+	// Temporary stuff depending on if it works
+	lp_cov_div = 0;
+	count_covdiv = 0;
+
+
+
+
+
+	cov_divZ = 0;
+	cov_array_filledZ = 0;
+
+	of_hover_ctrl.sum_errZ = 0;
+	of_hover_ctrl.d_errZ = 0;
+	of_hover_ctrl.previous_errZ = 0;
+
+	vision_time = get_sys_time_float();
+	prev_vision_timeZ = vision_time;
+
+	height = (stateGetPositionEnu_i()->z)*0.0039063;
+}
+
+/**
+ * Run the horizontal optical flow hover module
+ */
+void horizontal_ctrl_module_run(bool in_flight)
+{
+	/***********
+	 * TIME
+	 ***********/
+	float ventral_factor = -1.28f; // magic number comprising field of view etc.
+
+	float dt = vision_time - prev_vision_timeXY;
+
+	// check if new measurement received
+	if (dt <= 1e-5f) {
+		return;
+	}
+
+	/***********
+	 * VISION
+	 ***********/
+
+	// TODO: Figure out if LP factor isn't 1 all the time
+	Bound(of_hover_ctrl.lp_const, 0.001f, 1.f);
+	float lp_factor = dt / of_hover_ctrl.lp_const;
+	Bound(lp_factor, 0.f, 1.f);
+
+	float new_flowX = (flowX * ventral_factor) / dt;
+	float new_flowY = (flowY * ventral_factor) / dt;
+
+	//TODO: deal with (unlikely) fast changes in Flow?
+
+	// low-pass filter the divergence:
+	of_hover_ctrl.flowX += (new_flowX - of_hover_ctrl.flowX) * lp_factor;
+	of_hover_ctrl.flowY += (new_flowY - of_hover_ctrl.flowY) * lp_factor;
+	prev_vision_timeXY = vision_time;
+
+	/***********
+	 * CONTROL
+	 ***********/
+	if(!oscillatingX)
+	{
+		// if not oscillating, increase gain
+		pusedX += of_hover_ctrl.rampXY*dt;
+	}
+	if(!oscillatingY)
+	{
+		// if not oscillating, increase gain
+		pusedY += of_hover_ctrl.rampXY*dt;
+	}
+
+	// set desired pitch en roll
+	if(oscphi)
+	{
+		phi_des = PID_flow_control(of_hover_ctrl.flow_setpoint, pusedX, iusedX, dusedX, dt, 0);
+	}
+	if(osctheta)
+	{
+		theta_des = PID_flow_control(of_hover_ctrl.flow_setpoint, pusedY, iusedY, dusedY, dt, 1);
+	}
+
+	// update covariance
+	set_cov_flow();
+
+	ofh_sp_eu.phi = BFP_OF_REAL(RadOfDeg(phi_des*oscphi), INT32_ANGLE_FRAC);
+	ofh_sp_eu.theta = BFP_OF_REAL(RadOfDeg(theta_des*osctheta), INT32_ANGLE_FRAC);
+
+	// Check for oscillations
+	if(abs(cov_flowX)>of_hover_ctrl.covFlow_set_point)
+	{
+		if(!oscillatingX)
+		{
+			oscillatingX = 1;
+			pusedX = pusedX*of_hover_ctrl.reduction_factorXY;
+		}
+	}
+	if(cov_flowY>of_hover_ctrl.covFlow_set_point)
+	{
+		if(!oscillatingY)
+		{
+			oscillatingY = 1;
+			pusedY = pusedY*of_hover_ctrl.reduction_factorXY;
+		}
+	}
+
+	// Compute 0, 1 or 2 horizontal axes with optitrack
+	computeOptiTrack(!oscphi,!osctheta,&ofh_sp_eu);
+
+	// Run the stabilization mode
+	stabilization_attitude_set_rpy_setpoint_i(&ofh_sp_eu);
+
+}
+
+/**
+ * Run the vertical optical flow hover module
+ */
 void vertical_ctrl_module_run(bool in_flight)
 {
-  int i;
-  float lp_height; // low-pass height
+	/***********
+	 * TIME
+	 ***********/
 
-  // ensure dt >= 0
-  if (dt < 0) { dt = 0.0f; }
+	float div_factor; // factor that maps divergence in pixels as received from vision to 1 / frame
 
-  // get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
-  uint32_t new_time = get_sys_time_msec();
-  uint32_t delta_t = new_time - previous_time;
-  dt += ((float)delta_t) / 1000.0f;
-  if (dt > 10.0f) {
-    dt = 0.0f;
-    return;
-  }
-  previous_time = new_time;
-  uint32_t module_active_time = new_time - module_enter_time;
-  float module_active_time_sec = (float) module_active_time / 1000.0f;
-  dt_history[ind_hist % of_landing_ctrl.window_size] = dt;
-  ind_hist++;
+	float dt = vision_time - prev_vision_timeZ;
 
-  if (!in_flight) {
+	// check if new measurement received
+	if (dt <= 1e-5f) {
+		return;
+	}
 
-    // When not flying and in mode module:
-    // Reset integrators, landing phases, etc.
-    // reset_all_vars(); // commented out to allow us to study the observation variables in-hand, i.e., without flying
-  }
+	/***********
+	 * VISION
+	 ***********/
 
-  /***********
-   * VISION
-   ***********/
+	Bound(of_hover_ctrl.lp_const, 0.001f, 1.f);
+	float lp_factor = dt / of_hover_ctrl.lp_const;
+	Bound(lp_factor, 0.f, 1.f);
 
-  if (of_landing_ctrl.VISION_METHOD == 0) {
+	// Vision
+	div_factor = -1.28f; // magic number comprising field of view etc.
+	float new_divergence = (divergence_vision * div_factor) / dt;
 
-    // SIMULATED DIVERGENCE:
+	// deal with (unlikely) fast changes in divergence:
+	static const float max_div_dt = 0.20f;
+	if (fabsf(new_divergence - of_hover_ctrl.divergence) > max_div_dt) {
+		if (new_divergence < of_hover_ctrl.divergence) { new_divergence = of_hover_ctrl.divergence - max_div_dt; }
+		else { new_divergence = of_hover_ctrl.divergence + max_div_dt; }
+	}
 
-    // USE OPTITRACK HEIGHT
-    // of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
-    of_landing_ctrl.agl = stateGetPositionLla_f()->alt;
-    // else we get an immediate jump in divergence when switching on.
-    if (of_landing_ctrl.agl_lp < 1E-5 || ind_hist == 0) {
-      of_landing_ctrl.agl_lp = of_landing_ctrl.agl;
-    }
-    if (fabs(of_landing_ctrl.agl - of_landing_ctrl.agl_lp) > 1.0f) {
-      // ignore outliers:
-      of_landing_ctrl.agl = of_landing_ctrl.agl_lp;
-    }
-    // calculate the new low-pass height and the velocity
-    lp_height = of_landing_ctrl.agl_lp * of_landing_ctrl.lp_factor + of_landing_ctrl.agl *
-                (1.0f - of_landing_ctrl.lp_factor);
+	// low-pass filter the divergence:
+	of_hover_ctrl.divergence += (new_divergence - of_hover_ctrl.divergence) * lp_factor;
+	prev_vision_timeZ = vision_time;
 
-    // only calculate velocity and divergence if dt is large enough:
-    if (dt > 0.0001f) {
-      of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) / dt;
-      of_landing_ctrl.agl_lp = lp_height;
+	/***********
+	 * CONTROL
+	 ***********/
 
-      // calculate the fake divergence:
-      if (of_landing_ctrl.agl_lp > 0.0001f) {
-        divergence = of_landing_ctrl.vel / of_landing_ctrl.agl_lp;
-        divergence_vision_dt = (divergence_vision / dt);
-        if (fabs(divergence_vision_dt) > 1E-5) {
-          of_landing_ctrl.div_factor = divergence / divergence_vision_dt;
-        }
-      } else {
-        divergence = 1000.0f;
-        // perform no control with this value (keeping thrust the same)
-        return;
-      }
-      // reset dt:
-      dt = 0.0f;
-    }
-  } else {
+	if(1)
+	{
+		if(!oscillatingZ)
+		{
+			// if not oscillating, increase gain
+			pusedZ += of_hover_ctrl.rampZ*dt;
+		}
+		// use the divergence for control:
+		thrust_set = PID_divergence_control(of_hover_ctrl.divergence_setpoint, pusedZ, iusedZ, dusedZ, dt);
 
-    // USE REAL VISION OUTPUTS:
+		// Check for oscillations
+		//	TODO: Remove FABS?
+		if(fabs(cov_divZ)>of_hover_ctrl.covDiv_set_point && (!oscillatingZ))
+		{
+			oscillatingZ = 1;
+			printf("Height,%f,Gain,%f\n",height,pusedZ);
+			pusedZ = pusedZ*0.75;
+		}
+	}
+	else
+	{
+		// if not yet oscillating, increase the gains:
+		// TODO: Why the > sign instead of < sign?
+		if (!oscillatingZ && cov_divZ > of_hover_ctrl.covDiv_set_point) {
+			float increasedGainZ = of_hover_ctrl.rampZ*dt;
+			float gain_factor = pusedZ / (pusedZ+increasedGainZ);
+			pusedZ += increasedGainZ;
+			iusedZ *= gain_factor;
+			dusedZ *= gain_factor;
+		}
 
-    if (vision_message_nr != previous_message_nr && dt > 1E-5 && ind_hist > 1) {
+		// use the divergence for control:
+		thrust_set = PID_divergence_control(of_hover_ctrl.divergence_setpoint, pusedZ, iusedZ, dusedZ, dt);
 
-      float new_divergence = (divergence_vision * of_landing_ctrl.div_factor) / dt;
 
-      // deal with (unlikely) fast changes in divergence:
-      float max_div_dt = 0.20;
-      if (fabs(new_divergence - divergence) > max_div_dt) {
-        if (new_divergence < divergence) { new_divergence = divergence - max_div_dt; }
-        else { new_divergence = divergence + max_div_dt; }
-      }
+		// low pass filter cov div and remove outliers:
+		if (fabsf(lp_cov_div - cov_divZ) < 2.2) {
+			lp_cov_div = 0.99f * lp_cov_div + (1 - 0.99f) * cov_divZ;
+		}
+		// if oscillating, maintain a counter to see if it endures:
+		if (lp_cov_div <= -0.0075) {
+			count_covdiv++;
+		} else {
+			count_covdiv = 0;
+			elc_time_start = get_sys_time_float();
+		}
+		// if the drone has been oscillating long enough, start landing:
+		if (!oscillatingZ ||
+				(count_covdiv > 0 && (get_sys_time_float() - elc_time_start) >= 2.f)) {
 
-      // low-pass filter the divergence:
-      divergence = divergence * of_landing_ctrl.lp_factor + (new_divergence * (1.0f - of_landing_ctrl.lp_factor));
-      previous_message_nr = vision_message_nr;
-      dt = 0.0f;
+			// Oscillating:
+			oscillatingZ = 1;
 
-    } else {
-      // after re-entering the module, the divergence should be equal to the set point:
-      if (ind_hist <= 1) {
-        divergence = of_landing_ctrl.divergence_setpoint;
-        for (i = 0; i < MAX_COV_WINDOW_SIZE; i++) {
-          thrust_history[i] = 0;
-          divergence_history[i] = 0;
-          dt_history[i] = 0;
-        }
-        // TODO: is this correct? Shouldn't dt be incremented?
-        dt = 0.0f;
-        int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
-        stabilization_cmd[COMMAND_THRUST] = nominal_throttle;
-      }
-      // else: do nothing, let dt increment
-      return;
-    }
-  }
-
-  if (in_flight) {
-
-    /***********
-    * CONTROL
-    ***********/
-
-    float err;
-    int32_t thrust;
-
-    // landing indicates whether the drone is already performing a final landing procedure (flare):
-    if (!landing) {
-
-      // First seconds, don't do anything crazy:
-      if (module_active_time_sec < 2.5f) {
-        int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
-        thrust = nominal_throttle;
-        stabilization_cmd[COMMAND_THRUST] = thrust;
-        return;
-      }
-
-      if (of_landing_ctrl.CONTROL_METHOD == 0) {
-
-        // FIXED GAIN CONTROL, cov_limit for landing:
-
-        // make sure the p gain is logged:
-        pstate = of_landing_ctrl.pgain;
-        pused = pstate;
-        // use the divergence for control:
-        thrust = PID_divergence_control(of_landing_ctrl.divergence_setpoint, of_landing_ctrl.pgain, of_landing_ctrl.igain,
-                                        of_landing_ctrl.dgain, &err);
-        // keep track of histories and set the covariance
-        set_cov_div(thrust);
-        // update the controller errors:
-        update_errors(err);
-        // trigger the landing if the cov div is too high:
-        if (ind_hist >= of_landing_ctrl.window_size && fabs(cov_div) > of_landing_ctrl.cov_limit) {
-          final_landing_procedure();
-        }
-      } else if (of_landing_ctrl.CONTROL_METHOD == 1) {
-
-        // ADAPTIVE GAIN CONTROL:
-        // TODO: i-gain and d-gain are currently not adapted
-
-        // adapt the gains according to the error in covariance:
-        float error_cov = of_landing_ctrl.cov_set_point - cov_div;
-        // limit the error_cov, which could else become very large:
-        if (error_cov > fabs(of_landing_ctrl.cov_set_point)) { error_cov = fabs(of_landing_ctrl.cov_set_point); }
-        pstate -= (of_landing_ctrl.igain_adaptive * pstate) * error_cov;
-        if (pstate < MINIMUM_GAIN) { pstate = MINIMUM_GAIN; }
-        pused = pstate - (of_landing_ctrl.pgain_adaptive * pstate) * error_cov;
-        // make sure pused does not become too small, nor grows too fast:
-        if (pused < MINIMUM_GAIN) { pused = MINIMUM_GAIN; }
-        if (of_landing_ctrl.COV_METHOD == 1 && error_cov > 0.001) {
-          pused = 0.5 * pused;
-        }
-
-        // use the divergence for control:
-        thrust = PID_divergence_control(of_landing_ctrl.divergence_setpoint, pused, of_landing_ctrl.igain,
-                                        of_landing_ctrl.dgain, &err);
-        // keep track of histories and set the covariance
-        if (ind_hist >= of_landing_ctrl.window_size) {
-          set_cov_div(thrust);
-        } else {
-          cov_div = of_landing_ctrl.cov_set_point;
-        }
-
-        // update the controller errors:
-        update_errors(err);
-
-        // TODO: could put a landing condition here based on pstate (if too low) - for when the desired divergence is negative
-
-      } else if (of_landing_ctrl.CONTROL_METHOD == 2) {
-
-        // EXPONENTIAL GAIN CONTROL:
-
-        float phase_0_set_point = 0.0f;
-        if (elc_phase == 0) {
-          // increase the gain till you start oscillating:
-
-          // if not yet oscillating, increase the gains:
-          if (cov_div > of_landing_ctrl.cov_set_point) {
-            float time_factor;
-            if (ind_hist >= 1) {
-              time_factor = dt_history[(ind_hist - 1) % of_landing_ctrl.window_size];
-            } else {
-              time_factor = 0.0f;
-            }
-            pstate += time_factor * INCREASE_GAIN_PER_SECOND;
-            float gain_factor = pstate / pused;
-            istate *= gain_factor;
-            dstate *= gain_factor;
-            pused = pstate;
-          }
-
-          // use the divergence for control:
-          thrust = PID_divergence_control(phase_0_set_point, pused, istate, dstate, &err);
-          // keep track of histories and set the covariance
-          set_cov_div(thrust);
-          // update the controller errors:
-          update_errors(err);
-
-          // low pass filter cov div and remove outliers:
-          if (abs(lp_cov_div - cov_div) < 0.025) { // constant tuned for cov method 0
-            lp_cov_div = of_landing_ctrl.lp_cov_div_factor * lp_cov_div + (1 - of_landing_ctrl.lp_cov_div_factor) * cov_div;
-          }
-          // if oscillating, maintain a counter to see if it endures:
-          if (lp_cov_div <= of_landing_ctrl.cov_set_point) {
-            count_covdiv++;
-          } else {
-            count_covdiv = 0;
-          }
-          // if the drone has been oscillating long enough, start landing:
-          if (ind_hist >= of_landing_ctrl.window_size && count_covdiv > of_landing_ctrl.count_transition) {
-            // next phase:
-            elc_phase = 1;
-            elc_time_start = get_sys_time_msec();
-
-            // we don't want to oscillate, so reduce the gain:
-            elc_p_gain_start = of_landing_ctrl.reduction_factor_elc * pstate;
-            elc_i_gain_start = of_landing_ctrl.reduction_factor_elc * istate;
-            elc_d_gain_start = of_landing_ctrl.reduction_factor_elc * dstate;
-            count_covdiv = 0;
-            of_landing_ctrl.sum_err = 0.0f;
-          }
-
-        } else if (elc_phase == 1) {
-          // control divergence to 0 with the reduced gain:
-          pstate = elc_p_gain_start;
-          pused = pstate;
-          istate = elc_i_gain_start;
-          dstate = elc_d_gain_start;
-
-          new_time = get_sys_time_msec();
-          float t_interval = (new_time - elc_time_start) / 1000.0f;
-          // printf("start = %d, now = %d, time interval = %f\n", elc_time_start, new_time, t_interval);
-          // this should not happen, but just to be sure to prevent too high gain values:
-          if (t_interval < 0) { t_interval = 0.0f; }
-
-          // use the divergence for control:
-          thrust = PID_divergence_control(phase_0_set_point, pused, istate, dstate, &err);
-          // keep track of histories and set the covariance
-          set_cov_div(thrust);
-          // update the controller errors:
-          update_errors(err);
-
-          // if we have been trying to hover stably again for 3 seconds and we move in the same way as the desired divergence, switch to landing:
-          if (t_interval >= 3.0f && divergence * of_landing_ctrl.divergence_setpoint >= 0.0f) {
-            // next phase:
-            elc_phase = 2;
-            elc_time_start = get_sys_time_msec();
-            count_covdiv = 0;
-          }
-        } else if (elc_phase == 2) {
-          // land while exponentially decreasing the gain:
-          new_time = get_sys_time_msec();
-          float t_interval = (new_time - elc_time_start) / 1000.0f;
-
-          // this should not happen, but just to be sure to prevent too high gain values:
-          if (t_interval < 0) { t_interval = 0.0f; }
-
-          // determine the P-gain, exponentially decaying:
-          float gain_scaling = exp(of_landing_ctrl.divergence_setpoint * t_interval);
-          if (gain_scaling <= 1.0f) {
-            pstate = elc_p_gain_start * gain_scaling;
-            istate = elc_i_gain_start * gain_scaling;
-            dstate = elc_d_gain_start * gain_scaling;
-          }
-          pused = pstate;
-
-          // use the divergence for control:
-          thrust = PID_divergence_control(of_landing_ctrl.divergence_setpoint, pused, istate, dstate, &err);
-          // keep track of histories and set the covariance
-          set_cov_div(thrust);
-          // update the controller errors:
-          update_errors(err);
-
-          // when to make the final landing:
-          if (pstate < of_landing_ctrl.p_land_threshold) {
-            elc_phase = 3;
-          }
-        } else {
-          final_landing_procedure();
-        }
-      }
-    } else {
-      final_landing_procedure();
-    }
-  }
+			// we don't want to oscillate, so reduce the gain:
+			pusedZ = of_hover_ctrl.reduction_factorZ * pusedZ;
+			iusedZ = of_hover_ctrl.reduction_factorZ * iusedZ;
+			dusedZ = of_hover_ctrl.reduction_factorZ * dusedZ;
+		}
+	}
+	stabilization_cmd[COMMAND_THRUST] = thrust_set;
 }
+
+
 
 /**
- * Execute a final landing procedure
+ * Set the covariance of the flow and past flow, possible the desired angle and the flow
+ * This funciton should only be called once per time step
+ * @param[in] thrust: the current thrust value
  */
-void final_landing_procedure()
+void set_cov_flow(void)
 {
-  // land with 90% nominal thrust:
-  int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
-  int32_t thrust = 0.90 * nominal_throttle;
-  Bound(thrust, 0.6 * nominal_throttle, 0.9 * MAX_PPRZ);
-  stabilization_cmd[COMMAND_THRUST] = thrust;
-  landing = 1;
+	// histories and cov detection:
+	flowX_history[ind_histXY] = (int32_t)of_hover_ctrl.flowX;
+	flowY_history[ind_histXY] = (int32_t)of_hover_ctrl.flowY;
+
+	int ind_past = ind_histXY - of_hover_ctrl.delay_steps;
+	while (ind_past < 0) { ind_past += of_hover_ctrl.window_size; }
+	past_flowX_history[ind_histXY] = flowX_history[ind_past];
+	past_flowY_history[ind_histXY] = flowY_history[ind_past];
+
+	// determine the covariance for hover detection:
+	// only take covariance into account if there are enough samples in the histories:
+	//	if (of_hover_ctrl.COV_METHOD == 0 && cov_array_filledXY > 0) {
+	//		// TODO: step in hover set point causes an incorrectly perceived covariance
+	//		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
+	//	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledXY > 1){
+	if (cov_array_filledXY > 1){
+		// todo: delay steps should be invariant to the run frequency
+		// TODO: Check integer vs float implementation vs integer casting
+		cov_flowX = covariance_i(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
+		cov_flowY = covariance_i(past_flowY_history, flowY_history, of_hover_ctrl.window_size);
+	}
+
+	if (cov_array_filledXY < 2 && ind_histXY + 1 == of_hover_ctrl.window_size) {
+		cov_array_filledXY++;
+	}
+	ind_histXY = (ind_histXY + 1) % of_hover_ctrl.window_size;
 }
+
+
 
 /**
  * Set the covariance of the divergence and the thrust / past divergence
+ * This funciton should only be called once per time step
  * @param[in] thrust: the current thrust value
  */
 void set_cov_div(int32_t thrust)
 {
-  // histories and cov detection:
-  normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
-  thrust_history[ind_hist % of_landing_ctrl.window_size] = normalized_thrust;
-  divergence_history[ind_hist % of_landing_ctrl.window_size] = divergence;
-  int ind_past = (ind_hist % of_landing_ctrl.window_size) - of_landing_ctrl.delay_steps;
-  while (ind_past < 0) { ind_past += of_landing_ctrl.window_size; }
-  float past_divergence = divergence_history[ind_past];
-  past_divergence_history[ind_hist % of_landing_ctrl.window_size] = past_divergence;
+	// histories and cov detection:
+	divergence_history[ind_histZ] = of_hover_ctrl.divergence;
 
-  // determine the covariance for landing detection:
-  // only take covariance into account if there are enough samples in the histories:
-  if (of_landing_ctrl.COV_METHOD == 0) {
-    cov_div = get_cov(thrust_history, divergence_history, of_landing_ctrl.window_size);
-  } else {
-    cov_div = get_cov(past_divergence_history, divergence_history, of_landing_ctrl.window_size);
-    // printf("Time window in seconds: %f\n", get_mean_array(dt_history, of_landing_ctrl.window_size) * of_landing_ctrl.window_size);
-  }
+	normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
+	thrust_history[ind_histZ] = normalized_thrust;
 
+	int ind_past = ind_histZ - of_hover_ctrl.delay_steps;
+	while (ind_past < 0) { ind_past += of_hover_ctrl.window_size; }
+	past_divergence_history[ind_histZ] = divergence_history[ind_past];
+
+	// determine the covariance for hover detection:
+	// only take covariance into account if there are enough samples in the histories:
+	if (of_hover_ctrl.COV_METHOD == 0 && cov_array_filledZ > 0) {
+		// TODO: step in hover set point causes an incorrectly perceived covariance
+		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
+	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1){
+		// todo: delay steps should be invariant to the run frequency
+		cov_divZ = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
+	}
+
+	if (cov_array_filledZ < 2 && ind_histZ + 1 == of_hover_ctrl.window_size) {
+		cov_array_filledZ++;
+	}
+	ind_histZ = (ind_histZ + 1) % of_hover_ctrl.window_size;
+}
+
+/**
+ * Determine and set the desired angle for constant flow control
+ * @param[out] desired angle
+ * @param[in] flow_set_point: The desired flow
+ * @param[in] P: P-gain
+ * @param[in] I: I-gain
+ * @param[in] D: D-gain
+ * @param[in] dt: time difference since last update
+ */
+float PID_flow_control(float setpoint, float P, float I, float D, float dt, bool phitheta)
+{
+	float des_angle = 0;
+
+	if(!phitheta)
+	{
+		// determine the error:
+		float err = setpoint - of_hover_ctrl.flowX;
+
+		// update the controller errors:
+		update_errors(err, dt, phitheta);
+
+		// compute the desired angle
+		des_angle = Max(-MAXBANK,Min(P * err + I * of_hover_ctrl.sum_errX + D * of_hover_ctrl.d_errX,MAXBANK));
+	}
+	else
+	{
+		// determine the error:
+		float err = setpoint - of_hover_ctrl.flowY;
+
+		// update the controller errors:
+		update_errors(err, dt, phitheta);
+
+		// compute the desired angle
+		des_angle = Max(-MAXBANK,Min(P * err + I * of_hover_ctrl.sum_errY + D * of_hover_ctrl.d_errY,MAXBANK));
+	}
+
+	return des_angle;
 }
 
 /**
@@ -454,135 +725,236 @@ void set_cov_div(int32_t thrust)
  * @param[in] P: P-gain
  * @param[in] I: I-gain
  * @param[in] D: D-gain
- * @param[in] err*: the error of the observed divergence with respect to the set point
+ * @param[in] dt: time difference since last update
  */
-
-int32_t PID_divergence_control(float divergence_setpoint, float P, float I, float D, float *err)
+int32_t PID_divergence_control(float setpoint, float P, float I, float D, float dt)
 {
-  // determine the error:
-  (*err) = divergence_setpoint - divergence;
+	// determine the error:
+	float err = setpoint - of_hover_ctrl.divergence;
 
-  // PID control:
-  int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
-  int32_t thrust = nominal_throttle + P * (*err) * MAX_PPRZ
-                   + I * of_landing_ctrl.sum_err * MAX_PPRZ
-                   + D * of_landing_ctrl.d_err * MAX_PPRZ;
+	// update the controller errors:
+	update_errors(err, dt, 0);
 
-  // bound thrust:
-  Bound(thrust, 0.25 * nominal_throttle, 0.99 * MAX_PPRZ);
+	// PID control:
+	int32_t thrust = (of_hover_ctrl.nominal_thrust
+			+ P * err
+			+ I * of_hover_ctrl.sum_errZ
+			+ D * of_hover_ctrl.d_errZ) * MAX_PPRZ;
 
-  // set the thrust:
-  stabilization_cmd[COMMAND_THRUST] = thrust;
-  return thrust;
+	// bound thrust:
+	Bound(thrust, 0.25 * of_hover_ctrl.nominal_thrust * MAX_PPRZ, MAX_PPRZ);
+
+	// update covariance
+	set_cov_div(thrust);
+
+	return thrust;
 }
 
 /**
  * Updates the integral and differential errors for PID control and sets the previous error
  * @param[in] err: the error of the divergence and divergence setpoint
+ * @param[in] dt:  time difference since last update
  */
-void update_errors(float err)
+void update_errors(float err, float dt, uint8_t mode)
 {
-  // maintain the controller errors:
-  of_landing_ctrl.sum_err += err;
-  of_landing_ctrl.d_err = of_landing_ctrl.lp_factor * of_landing_ctrl.d_err + (1 - of_landing_ctrl.lp_factor) *
-                          (err - previous_err) * 10.0f; // 10.0f to make it similarly sized to the error
-  previous_err = err;
+	float lp_factor = dt / of_hover_ctrl.lp_const;
+	Bound(lp_factor, 0.f, 1.f);
+
+	if(mode==0)
+	{
+		// mode = 0 = horizontal X
+
+		// maintain the controller errors:
+		of_hover_ctrl.sum_errX += err;
+		of_hover_ctrl.d_errX += (((err - of_hover_ctrl.previous_errX) / dt) - of_hover_ctrl.d_errX) * lp_factor;
+		of_hover_ctrl.previous_errX = err;
+	}
+	else if(mode==1)
+	{
+		// mode = 1 = Horizontal Y
+
+		// maintain the controller errors:
+		of_hover_ctrl.sum_errY += err;
+		of_hover_ctrl.d_errY += (((err - of_hover_ctrl.previous_errY) / dt) - of_hover_ctrl.d_errY) * lp_factor;
+		of_hover_ctrl.previous_errY = err;
+	}
+	else
+	{
+		// mode = 2 = Vertical
+
+		// maintain the controller errors:
+		of_hover_ctrl.sum_errZ += err;
+		of_hover_ctrl.d_errZ += (((err - of_hover_ctrl.previous_errZ) / dt) - of_hover_ctrl.d_errZ) * lp_factor;
+		of_hover_ctrl.previous_errZ = err;
+	}
 }
 
-
-/**
- * Get the mean value of an array
- * @param[out] mean The mean value
- * @param[in] *a The array
- * @param[in] n Number of elements in the array
- */
-float get_mean_array(float *a, int n_elements)
+void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div,float regular_div, float dist)
 {
-  // determine the mean for the vector:
-  float mean = 0;
-  for (unsigned int i = 0; i < n_elements; i++) {
-    mean += a[i];
-  }
-  mean /= n_elements;
+	//	height = dist;
 
-  return mean;
+	flowX = flow_x;
+	flowY = flow_y;
+
+	regular_divergence = regular_div;
+	size_divergence = size_div;
+
+	if(of_hover_ctrl.ofmethode)
+	{
+		divergence_vision = regular_divergence;
+	}
+	else
+	{
+		divergence_vision = size_divergence;
+	}
+
+	vision_time = ((float)stamp) / 1e6;
 }
-
-/**
- * Get the covariance of two arrays
- * @param[out] cov The covariance
- * @param[in] *a The first array
- * @param[in] *b The second array
- * @param[in] n Number of elements in the arrays
- */
-float get_cov(float *a, float *b, int n_elements)
-{
-  // Determine means for each vector:
-  float mean_a = get_mean_array(a, n_elements);
-  float mean_b = get_mean_array(b, n_elements);
-
-  // Determine the covariance:
-  float cov = 0;
-  for (unsigned int i = 0; i < n_elements; i++) {
-    cov += (a[i] - mean_a) * (b[i] - mean_b);
-  }
-
-  cov /= n_elements;
-
-  return cov;
-}
-
-
 
 ////////////////////////////////////////////////////////////////////
-// Call our controller
+// Call our vertical controller
 void guidance_v_module_init(void)
 {
-  vertical_ctrl_module_init();
+	vertical_ctrl_module_init();
+}
+
+// Call our horizontal controller
+void guidance_h_module_init(void)
+{
+	horizontal_ctrl_module_init();
 }
 
 /**
- * Entering the module (user switched to module)
+ * Entering the vertical module (user switched to module)
  */
 void guidance_v_module_enter(void)
 {
-  int i;
-  // reset integrator
-  of_landing_ctrl.sum_err = 0.0f;
-  of_landing_ctrl.d_err = 0.0f;
-  landing = 0;
-  ind_hist = 0;
-  previous_err = 0.0f;
-  previous_cov_err = 0.0f;
-  of_landing_ctrl.agl_lp = 0.0f;
-  cov_div = 0.0f; //of_landing_ctrl.cov_set_point;
-  normalized_thrust = 0.0f;
-  divergence = of_landing_ctrl.divergence_setpoint;
-  dt = 0.0f;
-  struct timespec spec;
-  clock_gettime(CLOCK_MONOTONIC, &spec);
-  previous_time = spec.tv_sec * 1E3 + spec.tv_nsec / 1.0E6;
-  module_enter_time = previous_time;
-  vision_message_nr = 1;
-  previous_message_nr = 0;
-  for (i = 0; i < MAX_COV_WINDOW_SIZE; i++) {
-    thrust_history[i] = 0;
-    divergence_history[i] = 0;
-  }
-  // Exponentially decreasing gain:
-  elc_phase = 0;
-  elc_time_start = 0;
-  count_covdiv = 0;
-  lp_cov_div = 0.0f;
-  pstate = of_landing_ctrl.pgain;
-  pused = pstate;
-  istate = of_landing_ctrl.igain;
+	reset_vertical_vars();
 
-  // adaptive estimation - assumes hover condition when entering the module:
-  of_landing_ctrl.nominal_thrust = (float) stabilization_cmd[COMMAND_THRUST] / MAX_PPRZ;
+	// adaptive estimation - assume hover condition when entering the module
+	of_hover_ctrl.nominal_thrust = (float) stabilization_cmd[COMMAND_THRUST] / MAX_PPRZ;
+	thrust_set = of_hover_ctrl.nominal_thrust * MAX_PPRZ;
 }
 
+/**
+ * Entering the horizontal module (user switched to module)
+ */
+void guidance_h_module_enter(void)
+{
+	reset_horizontal_vars();
+
+}
+
+// Run the veritcal controller
 void guidance_v_module_run(bool in_flight)
 {
-  vertical_ctrl_module_run(in_flight);
+	if(electrical.bat_low)
+	{
+		autopilot_static_set_mode(AP_MODE_NAV);
+	}
+	else
+	{
+		height = (stateGetPositionEnu_i()->z)*0.0039063;
+		// your vertical controller goes here
+		vertical_ctrl_module_run(in_flight);
+	}
+}
+
+// Run the horizontal controller
+void guidance_h_module_run(bool in_flight)
+{
+
+	if(electrical.bat_low)
+	{
+		autopilot_static_set_mode(AP_MODE_NAV);
+	}
+	else
+	{
+		horizontal_ctrl_module_run(in_flight);
+		stabilization_attitude_run(in_flight);
+	}
+}
+
+/**
+ * Get the desired Euler angles for optitrack stabilization
+ * @param[in] Boolean whether to Phi or not
+ * @param[in] Boolean whether to Theta or not
+ * @param[out] The desired Euler angles
+ */
+void computeOptiTrack(bool phi, bool theta,struct Int32Eulers *opti_sp_eu)
+{
+
+	bool optiVelOnly;
+	optiVelOnly = 0;
+
+	// Heading is going wrong?
+	int32_t psi = stateGetNedToBodyEulers_i()->psi;
+
+	struct NedCoor_i vel_from_GPS;
+	struct NedCoor_i pos_from_GPS;
+
+	vel_from_GPS = *stateGetSpeedNed_i();
+	pos_from_GPS = *stateGetPositionNed_i();
+
+	/* maximum bank angle: default 20 deg, max 40 deg*/
+	static const int32_t traj_max_bank = Min(BFP_OF_REAL(GUIDANCE_H_MAX_BANK, INT32_ANGLE_FRAC),
+			BFP_OF_REAL(RadOfDeg(40), INT32_ANGLE_FRAC));
+	static const int32_t total_max_bank = BFP_OF_REAL(RadOfDeg(45), INT32_ANGLE_FRAC);
+
+	/* compute position error    */
+	VECT2_DIFF(of_landing_pos_err, of_landing_ref_pos, pos_from_GPS);
+	/* saturate it               */
+	VECT2_STRIM(of_landing_pos_err, -MAX_POS_ERR, MAX_POS_ERR);
+
+	struct Int32Vect2 ref_speed;
+	ref_speed.x = 0;
+	ref_speed.y = 0;
+
+	/* compute speed error    */
+	VECT2_DIFF(of_landing_speed_err, ref_speed, vel_from_GPS);
+	/* saturate it               */
+	VECT2_STRIM(of_landing_speed_err, -MAX_SPEED_ERR, MAX_SPEED_ERR);
+
+	if(optiVelOnly)
+	{
+		of_landing_pos_err.x = 0;
+		of_landing_pos_err.y = 0;
+	}
+
+	/* run PID */
+	of_landing_cmd_earth.x =
+			((GUIDANCE_H_PGAIN * of_landing_pos_err.x) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+			((GUIDANCE_H_DGAIN * (of_landing_speed_err.x >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+	of_landing_cmd_earth.y =
+			((GUIDANCE_H_PGAIN * of_landing_pos_err.y) >> (INT32_POS_FRAC - GH_GAIN_SCALE)) +
+			((GUIDANCE_H_DGAIN * (of_landing_speed_err.y >> 2)) >> (INT32_SPEED_FRAC - GH_GAIN_SCALE - 2));
+
+	/* trim max bank angle from PD */
+	VECT2_STRIM(of_landing_cmd_earth, -traj_max_bank, traj_max_bank);
+
+	of_landing_trim_att_integrator.x += (GUIDANCE_H_IGAIN * of_landing_cmd_earth.x);
+	of_landing_trim_att_integrator.y += (GUIDANCE_H_IGAIN * of_landing_cmd_earth.y);
+	/* saturate it  */
+	VECT2_STRIM(of_landing_trim_att_integrator, -(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)),
+			(traj_max_bank << (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2)));
+
+	/* add it to the command */
+	of_landing_cmd_earth.x += (of_landing_trim_att_integrator.x >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+	of_landing_cmd_earth.y += (of_landing_trim_att_integrator.y >> (INT32_ANGLE_FRAC + GH_GAIN_SCALE * 2));
+
+	VECT2_STRIM(of_landing_cmd_earth, -total_max_bank, total_max_bank);
+
+	// Compute Angle Setpoints - Taken from Stab_att_quat
+	int32_t s_psi, c_psi;
+	PPRZ_ITRIG_SIN(s_psi, psi);
+	PPRZ_ITRIG_COS(c_psi, psi);
+
+	if(phi)
+	{
+		opti_sp_eu->phi = (-s_psi * of_landing_cmd_earth.x + c_psi * of_landing_cmd_earth.y) >> INT32_TRIG_FRAC;
+	}
+	if(theta)
+	{
+		opti_sp_eu->theta= -(c_psi * of_landing_cmd_earth.x + s_psi * of_landing_cmd_earth.y) >> INT32_TRIG_FRAC;
+	}
 }

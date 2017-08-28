@@ -1,22 +1,35 @@
 <!DOCTYPE module SYSTEM "module.dtd">
 
 <module name="optical_flow_hover" dir="ctrl">
-  <doc>
-    <description>
-      Optical flow Hover.
+	<doc>
+		<description>
+			Optical flow Hover.
 
-	  This module stabilizes the quadcopter in all three axis using only the camera and the IMU
-          </description>
-     </doc>
-  <settings>
-  </settings>
+			This module stabilizes the quadcopter in all three axis using only the
+			camera and the IMU
+		</description>
+		<section name="OFH" prefix="OFH_">
+		    <define name="LP_CONST" value="0.75" description="Low pass filter constant for divergence input."/>
+    </section>
+	</doc>
+	<settings>
+		<dl_settings>
+			 <dl_settings name="OpticalFlowHover">
+		        <dl_setting var="of_hover_ctrl.lp_const" min="0.005" step="0.005" max="1" module="ctrl/optical_flow_hover" shortname="lp_factor" param="OFH_LP_CONST"/>
+             </dl_settings>
+      </dl_settings>
+	</settings>
 
-  <header>
-    <file name="optical_flow_hover.h"/>
-  </header>
+	<header>
+		<file name="optical_flow_hover.h" />
+	</header>
 
-  <makefile target="ap">
-    <file name="optical_flow_hover.c"/>
-  </makefile>
+	<init fun="optical_flow_hover_init()" />
+	<periodic fun="optical_flow_hover_periodic()" start="optical_flow_hover_start()"
+		stop="optical_flow_hover_stop()" autorun="TRUE" />
+
+	<makefile target="ap">
+		<file name="optical_flow_hover.c" />
+	</makefile>
 
 </module>
