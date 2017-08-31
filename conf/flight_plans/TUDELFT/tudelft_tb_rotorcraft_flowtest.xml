@@ -48,16 +48,12 @@
       <attitude pitch="0" roll="0" throttle="0" until="FALSE" vmode="throttle"/>
     </block>
     <block name="Takeoff" strip_button="Takeoff" strip_icon="takeoff.png">
-      <set value="0" var="nav_heading"/>
       <exception cond="stateGetPositionEnu_f()->z > 1.0" deroute="Standby"/>
       <call_once fun="NavSetWaypointHere(WP_CLIMB)"/>
       <stay climb="nav_climb_vspeed" vmode="climb" wp="CLIMB"/>
-      <set value="0" var="nav_heading"/>
     </block>
     <block name="Standby" strip_button="Standby" strip_icon="home.png">
-      <set value="0" var="nav_heading"/>
       <stay wp="STDBY"/>
-      <set value="0" var="nav_heading"/>
     </block>
     <block name="START" strip_button="Go" strip_icon="lookfore.png">
       <set value="0" var="nav_heading"/>
@@ -65,9 +61,9 @@
       <set value="0" var="nav_heading"/>
     </block>
     <block name="StayRight">
-      <set value="0" var="nav_heading"/>
+      <set value="23805.779156718" var="nav_heading"/>
       <stay wp="Right"/>
-      <set value="0" var="nav_heading"/>
+      <set value="23805.779156718" var="nav_heading"/>
     </block>
     <block name="line_RL">
       <go from="Right" hmode="route" wp="Left"/>

@@ -55,8 +55,8 @@ struct OpticalFlowHover {
 	float rampZ;				   ///< The ramp pused is increased with per dt
 
 	float divergence;              ///< Divergence estimate
-	int16_t flowX;			       ///< Flow estimate in X direction
-	int16_t flowY;			       ///< Flow estimate in Y direction
+	float flowX;			       ///< Flow estimate in X direction
+	float flowY;			       ///< Flow estimate in Y direction
 
 	float previous_errX;           ///< Previous divergence tracking error
 	float sum_errX;                ///< integration of the error for I-gain
@@ -76,7 +76,7 @@ struct OpticalFlowHover {
 	float divergence_setpoint;     ///< setpoint for constant divergence approach
 	float covDiv_set_point;        ///< for adaptive gain control, setpoint of the covariance (oscillations)
 
-	int16_t flow_setpoint;         ///< setpoint for constant divergence approach
+	float flow_setpoint;         ///< setpoint for constant divergence approach
 	float covFlow_set_point;       ///< for adaptive gain control, setpoint of the covariance (oscillations)
 
 	float reduction_factorXY;      ///< Reduce the XY gains by this factor when oscillating

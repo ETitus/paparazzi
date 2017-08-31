@@ -1724,6 +1724,7 @@
       <field name="div_size"    type="float" unit="1/s"/>
       <field name="surface_roughness"    type="float" unit="1/s"/>
       <field name="divergence"    type="float" unit="1/s"/>
+      <field name="height" 		type="float" unit="m"/>
     </message>
 
     <message name="STEREO_IMG" id="229">
@@ -1828,11 +1829,11 @@
     </message>
 
     <message name="OPTICAL_FLOW_HOVER" id="243">
-      <field name="flowX" type="int16"> Filtered Horizontal velocity in X / height used in Optical Flow Hover</field>
-      <field name="flowY" type="int16"> Filtered Horizontal velocity in X / height used in Optical Flow Hover</field>
+      <field name="flowX" type="float"> Filtered Horizontal velocity in X / height used in Optical Flow Hover</field>
+      <field name="flowY" type="float"> Filtered Horizontal velocity in X / height used in Optical Flow Hover</field>
       <field name="Divergence" type="float"> Filtered vertical velocity / height used in Optical Flow Hover</field>
-      <field name="cov_flowX" type="int32_t"> covariance of Ventral flow in X and past ventral flow in X</field>
-      <field name="cov_flowY" type="int32_t"> covariance of Ventral flow in Y and past ventral flow in Y</field>
+      <field name="cov_flowX" type="float"> covariance of Ventral flow in X and past ventral flow in X</field>
+      <field name="cov_flowY" type="float"> covariance of Ventral flow in Y and past ventral flow in Y</field>
       <field name="cov_divZ" type="float"> covariance of divergence and past divergence or thrust history</field>
       <field name="pusedX" type="float"> Gain used in the X feedback</field>
       <field name="pusedY" type="float"> Gain used in the Y feedback</field>
@@ -1840,7 +1841,7 @@
       <field name="sum_errX" type="float"> Sum of errors in X</field>
       <field name="sum_errY" type="float"> Sum of errors in Y</field>
       <field name="sum_errZ" type="float"> Sum of errors in Z</field>
-      <field name="thrust" type="uint32"> The thrust</field>
+      <field name="thrust" type="int32"> The thrust</field>
       <field name="phi_des" type="int32"> The desired phi angle in ???</field>
       <field name="theta_des" type="int32"> The desired theta angle in ???</field>
       <field name="height" type="float"> measurement from OptiTrack</field>

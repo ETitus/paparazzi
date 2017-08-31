@@ -70,10 +70,7 @@ struct opticflow_t {
 
   uint16_t fast9_rsize;             ///< Amount of corners allocated
   struct point_t *fast9_ret_corners;    ///< Corners
-  bool feature_management;        ///< Decides whether to keep track corners in memory for the next frame instead of re-detecting every time
-  bool fast9_region_detect;       ///< Decides whether to detect fast9 corners in specific regions of interest or the whole image (only for feature management)
-  uint8_t fast9_num_regions;      ///< The number of regions of interest the image is split into
-  bool snapshot; 		  ///< used to make a snapshot
+  bool snapshot; 					///< used to make a snapshot
 };
 
 // Use it to take and save pictures

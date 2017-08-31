@@ -65,11 +65,6 @@ PRINT_CONFIG_VAR(OPTICFLOW_SEND_ABI_ID)
 #define PERIODIC_TELEMETRY 1       ///< Default ID to send abi messages
 #endif
 
-#ifndef OPTICFLOW_FPS
-#define OPTICFLOW_FPS 0       ///< Default FPS (zero means run at camera fps)
-#endif
-PRINT_CONFIG_VAR(OPTICFLOW_FPS)
-
 
 /* The main opticflow variables */
 struct opticflow_t opticflow;                      ///< Opticflow calculations
@@ -86,9 +81,9 @@ static pthread_mutex_t opticflow_mutex;            ///< Mutex lock fo thread saf
 struct image_t *opticflow_module_calc(struct image_t *img);     ///< The main optical flow calculation thread
 static void opticflow_agl_cb(uint8_t sender_id, float distance);    ///< Callback function of the ground altitude
 static void opticflow_imu_accel_cb(uint8_t sender_id, uint32_t stamp,
-		struct Int32Vect3 *accel); ///< Callback function of the IMU's accelerometers
+                                   struct Int32Vect3 *accel); ///< Callback function of the IMU's accelerometers
 static void opticflow_body_to_imu_cb(uint8_t sender_id,
-		struct FloatQuat *q_b2i_f); ///< Callback function of imu to body
+                                     struct FloatQuat *q_b2i_f); ///< Callback function of imu to body
 
 #if PERIODIC_TELEMETRY
 #include "subsystems/datalink/telemetry.h"
@@ -107,7 +102,7 @@ static void opticflow_telem_send(struct transport_tx *trans, struct link_device 
 				&opticflow_result.flow_y, &opticflow_result.flow_der_x,
 				&opticflow_result.flow_der_y, &opticflow_result.vel_x,
 				&opticflow_result.vel_y, &opticflow_result.div_size,
-				&opticflow_result.surface_roughness, &opticflow_result.divergence); // TODO: no noise measurement here...
+				&opticflow_result.surface_roughness, &opticflow_result.divergence,&opticflow_state.agl); // TODO: no noise measurement here...
 	}
 	pthread_mutex_unlock(&opticflow_mutex);
 }
@@ -142,13 +137,13 @@ void opticflow_module_init(void)
 	opticflow_got_result = false;
 	opticflow_calc_init(&opticflow);
 
-	cv_add_to_device(&OPTICFLOW_CAMERA, opticflow_module_calc, OPTICFLOW_FPS);
+	cv_add_to_device(&OPTICFLOW_CAMERA, opticflow_module_calc);
 
 #if PERIODIC_TELEMETRY
 	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_OPTIC_FLOW_EST, opticflow_telem_send);
 #endif
 
-	//	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SNAPSHOT, send_snapshot);
+//	register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_SNAPSHOT, send_snapshot);
 }
 
 /**
@@ -201,7 +196,7 @@ struct image_t *opticflow_module_calc(struct image_t *img)
 	temp_state.rates = pose.rates;
 
 	// Do the optical flow calculation
-	static struct opticflow_result_t temp_result = {}; // static so that the number of corners is kept between frames
+	struct opticflow_result_t temp_result = {}; // new initialization
 	opticflow_calc_frame(&opticflow, &temp_state, img, &temp_result);
 
 	// Copy the result if finished
