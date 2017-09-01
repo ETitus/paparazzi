@@ -1842,8 +1842,8 @@
       <field name="sum_errY" type="float"> Sum of errors in Y</field>
       <field name="sum_errZ" type="float"> Sum of errors in Z</field>
       <field name="thrust" type="int32"> The thrust</field>
-      <field name="phi_des" type="int32"> The desired phi angle in ???</field>
-      <field name="theta_des" type="int32"> The desired theta angle in ???</field>
+      <field name="phi_des" type="float"> The desired phi angle in ???</field>
+      <field name="theta_des" type="float"> The desired theta angle in ???</field>
       <field name="height" type="float"> measurement from OptiTrack</field>
     </message>
 
