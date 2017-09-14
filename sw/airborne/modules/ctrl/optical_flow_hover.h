@@ -36,7 +36,7 @@
 
 bool oscphi;
 bool osctheta;
-
+bool derotated;
 
 struct OpticalFlowHover {
 	float pgainX;                  ///< P-gain for constant divergence control (from divergence error to thrust)

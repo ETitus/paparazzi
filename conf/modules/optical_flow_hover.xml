@@ -29,7 +29,7 @@
 		        	<dl_setting var="of_hover_ctrl.COV_METHOD" min="0" step="1" max="1" values="Div-Thrust|Div-Shift div" module="ctrl/optical_flow_hover" shortname="COV_METHOD" param="OFH_COV_METHOD"/>
              	</dl_settings>		        
              	<dl_settings name="Horizontal">
-             		<dl_setting var="of_hover_ctrl.covFlow_set_point" min="-10000" step="100" max="10000" module="ctrl/optical_flow_hover" shortname="covFlow_set_point" param="OFH_COVDIV_SETPOINT"/>
+             		<dl_setting var="of_hover_ctrl.covFlow_set_point" min="-100000" step="100" max="10000" module="ctrl/optical_flow_hover" shortname="covFlow_set_point" param="OFH_COVDIV_SETPOINT"/>
 		        	<dl_setting var="of_hover_ctrl.rampXY" min="0" step="0.0001" max="0.05" module="ctrl/optical_flow_hover" shortname="rampXY" param="OFH_RAMPXY"/>
 		        	<dl_setting var="of_hover_ctrl.reduction_factorXY" min="0.1" step="0.01" max="1" module="ctrl/optical_flow_hover" shortname="reduction_factorXY" param="OFH_REDUCTIONXY"/>
 		        	<dl_setting var="of_hover_ctrl.pgainX" min="0" step="0.00001" max="0.01" module="ctrl/optical_flow_hover" shortname="pgainX"/>
@@ -40,6 +40,7 @@
 		        	<dl_setting var="of_hover_ctrl.dgainY" min="0" step="0.00001" max="0.001" module="ctrl/optical_flow_hover" shortname="DgainY" param="OFH_DGAINY"/>
 		        	<dl_setting var="oscphi" min="0" step="1" max="1" values="No|OSC" module="ctrl/optical_flow_hover" shortname="oscphi" />
 		        	<dl_setting var="osctheta" min="0" step="1" max="1" values="No|OSC" module="ctrl/optical_flow_hover" shortname="osctheta" />
+		        	<dl_setting var="derotated" min="0" step="1" max="1" values="Reg|Der" module="ctrl/optical_flow_hover" shortname="derotated" />
              	</dl_settings>
              </dl_settings>
       </dl_settings>

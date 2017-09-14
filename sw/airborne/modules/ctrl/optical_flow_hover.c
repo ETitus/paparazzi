@@ -109,7 +109,7 @@ bool oscillatingY;
 int16_t flowX;
 int16_t flowY;
 uint32_t ind_histXY;
-uint8_t cov_array_filledXY;
+//uint8_t cov_array_filledXY;
 float cov_flowX = 0;
 float cov_flowY = 0;
 float flowX_history[OFH_COV_WINDOW_SIZE];
@@ -117,6 +117,7 @@ float flowY_history[OFH_COV_WINDOW_SIZE];
 float past_flowX_history[OFH_COV_WINDOW_SIZE];
 float past_flowY_history[OFH_COV_WINDOW_SIZE];
 float phi_history[OFH_COV_WINDOW_SIZE];
+float theta_history[OFH_COV_WINDOW_SIZE];
 
 float pusedX;
 float pusedY;
@@ -211,6 +212,7 @@ bool isplus;
 // sending the divergence message to the ground station:
 static void send_optical_flow_hover(struct transport_tx *trans, struct link_device *dev)
 {
+	height = (stateGetPositionEnu_i()->z)*0.0039063;
 	pprz_msg_send_OPTICAL_FLOW_HOVER(trans, dev, AC_ID,&(of_hover_ctrl.flowX),&(of_hover_ctrl.flowY),&(of_hover_ctrl.divergence),
 			&cov_flowX,&cov_flowY,&cov_divZ,&pusedX,&pusedY,&pusedZ,&(of_hover_ctrl.sum_errX),&(of_hover_ctrl.sum_errY),&(of_hover_ctrl.sum_errZ),
 			&thrust_set,&phi_des,&theta_des,&height);
@@ -318,7 +320,7 @@ static void reset_horizontal_vars(void)
 	ofh_sp_eu.phi = theta_des;
 
 	ind_histXY = 0;
-	cov_array_filledXY = 0;
+	//	cov_array_filledXY = 0;
 
 	cov_flowX = 0.0f;
 	cov_flowY = 0.0f;
@@ -330,6 +332,7 @@ static void reset_horizontal_vars(void)
 		past_flowX_history[i] = 0.0f;
 		past_flowY_history[i] = 0.0f;
 		phi_history[i] = 0.0f;
+		theta_history[i] = 0.0f;
 	}
 
 	vision_time = get_sys_time_float();
@@ -416,7 +419,7 @@ void horizontal_ctrl_module_run(bool in_flight)
 	// low-pass filter the divergence:
 	of_hover_ctrl.flowX += (new_flowX - of_hover_ctrl.flowX) * lp_factor;
 	of_hover_ctrl.flowY += (new_flowY - of_hover_ctrl.flowY) * lp_factor;
-//	prev_vision_timeXY = vision_time;
+	//	prev_vision_timeXY = vision_time;
 
 	/***********
 	 * CONTROL
@@ -614,8 +617,10 @@ void set_cov_flow(void)
 	past_flowX_history[ind_histXY] = flowX_history[ind_past];
 	past_flowY_history[ind_histXY] = flowY_history[ind_past];
 	float normalized_phi = (float)(phi_des / (MAXBANK / 100.0));
+	float normalized_theta = (float)(theta_des / (MAXBANK / 100.0));
 	phi_history[ind_histXY] = normalized_phi;
-//	printf("ind: %d, pastInd: %d, VT: %f, dt: %f\n",ind_histXY,ind_past,vision_time,(vision_time - prev_vision_timeXY));
+	theta_history[ind_histXY] = normalized_theta;
+	//	printf("ind: %d, pastInd: %d, VT: %f, dt: %f\n",ind_histXY,ind_past,vision_time,(vision_time - prev_vision_timeXY));
 
 	// determine the covariance for hover detection:
 	// only take covariance into account if there are enough samples in the histories:
@@ -623,21 +628,25 @@ void set_cov_flow(void)
 	//		// TODO: step in hover set point causes an incorrectly perceived covariance
 	//		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
 	//	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledXY > 1){
-//	if (cov_array_filledXY > 1){
-		// todo: delay steps should be invariant to the run frequency
-		cov_flowX = covariance_f(phi_history, flowX_history, of_hover_ctrl.window_size);
-//		cov_flowX = covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
-		cov_flowY = covariance_f(past_flowY_history, flowY_history, of_hover_ctrl.window_size);
-//	}
-//	else
-//	{
-//		cov_flowX = 1000;
-//		cov_flowY = 1000;
-//	}
+	//	if (cov_array_filledXY > 1){
+	// todo: delay steps should be invariant to the run frequency
+	cov_flowX = covariance_f(phi_history, flowX_history, of_hover_ctrl.window_size);
+	// Temporarily set covFlowY to log both
+	cov_flowY =covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
+	//		cov_flowX = covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
 
-//	if (cov_array_filledXY < 2 && ind_histXY + 1 == of_hover_ctrl.window_size) {
-//		cov_array_filledXY++;
-//	}
+	//		cov_flowY = covariance_f(theta_history, flowY_history, of_hover_ctrl.window_size);
+	//		cov_flowY = covariance_f(past_flowY_history, flowY_history, of_hover_ctrl.window_size);
+	//	}
+	//	else
+	//	{
+	//		cov_flowX = 1000;
+	//		cov_flowY = 1000;
+	//	}
+
+	//	if (cov_array_filledXY < 2 && ind_histXY + 1 == of_hover_ctrl.window_size) {
+	//		cov_array_filledXY++;
+	//	}
 	ind_histXY = (ind_histXY + 1) % of_hover_ctrl.window_size;
 }
 
@@ -665,7 +674,9 @@ void set_cov_div(int32_t thrust)
 	if (of_hover_ctrl.COV_METHOD == 0 && cov_array_filledZ > 0) {
 		// TODO: step in hover set point causes an incorrectly perceived covariance
 		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
-	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1){
+		// temporarily set cov_flowX here to log both cov divs at the same time
+		cov_flowX = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
+	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1) {
 		// todo: delay steps should be invariant to the run frequency
 		cov_divZ = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
 	}
@@ -732,8 +743,13 @@ int32_t PID_divergence_control(float setpoint, float P, float I, float D, float 
 	// update the controller errors:
 	update_errors(err, dt, 2);
 
+
+	//	struct Int32Eulers tempangle;
+	//	  int32_eulers_of_quat(&tempangle,&stab_att_sp_quat);
+	//	  float offangle = FLOAT_OF_BFP(tempangle.phi,INT32_ANGLE_FRAC);
+
 	// PID control:
-	int32_t thrust = (of_hover_ctrl.nominal_thrust
+	int32_t thrust = (of_hover_ctrl.nominal_thrust // /cos(offangle)
 			+ P * err
 			+ I * of_hover_ctrl.sum_errZ
 			+ D * of_hover_ctrl.d_errZ) * MAX_PPRZ;
@@ -790,9 +806,15 @@ void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t sta
 {
 	//	height = dist;
 
-	flowX = flow_x;
-	flowY = flow_y;
-
+	if(!derotated)
+	{
+		flowX = flow_x;
+		flowY = flow_y;
+	} else
+	{
+		flowX = flow_der_x;
+		flowY = flow_der_y;
+	}
 	regular_divergence = regular_div;
 	size_divergence = size_div;
 
@@ -855,7 +877,6 @@ void guidance_v_module_run(bool in_flight)
 	}
 	else
 	{
-		height = (stateGetPositionEnu_i()->z)*0.0039063;
 		// your vertical controller goes here
 		vertical_ctrl_module_run(in_flight);
 	}
