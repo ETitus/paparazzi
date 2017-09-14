@@ -34,11 +34,11 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 // number of time steps used for calculating the covariance (oscillations) and the delay steps
 #ifndef OFH_COV_WINDOW_SIZE
-#define OFH_COV_WINDOW_SIZE 30
+#define OFH_COV_WINDOW_SIZE (10*10)
 #endif
 
 #ifndef OFH_COV_DELAY_STEPS
-#define OFH_COV_DELAY_STEPS 15
+#define OFH_COV_DELAY_STEPS (5*10)
 #endif
 
 #ifndef OFH_PGAINZ
@@ -70,8 +70,8 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_IGAINX
-//#define OFH_IGAINX 0.0001
-#define OFH_IGAINX 0.0
+#define OFH_IGAINX 0.0001
+//#define OFH_IGAINX 0.0
 #endif
 
 #ifndef OFH_DGAINX
@@ -91,7 +91,7 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_RAMPXY
-#define OFH_RAMPXY 0.0008
+#define OFH_RAMPXY 0.0004
 #endif
 
 #ifndef OFH_REDUCTIONXY
@@ -112,10 +112,11 @@ uint32_t ind_histXY;
 uint8_t cov_array_filledXY;
 float cov_flowX = 0;
 float cov_flowY = 0;
-float	flowX_history[OFH_COV_WINDOW_SIZE];
-float	flowY_history[OFH_COV_WINDOW_SIZE];
+float flowX_history[OFH_COV_WINDOW_SIZE];
+float flowY_history[OFH_COV_WINDOW_SIZE];
 float past_flowX_history[OFH_COV_WINDOW_SIZE];
-float	past_flowY_history[OFH_COV_WINDOW_SIZE];
+float past_flowY_history[OFH_COV_WINDOW_SIZE];
+float phi_history[OFH_COV_WINDOW_SIZE];
 
 float pusedX;
 float pusedY;
@@ -126,7 +127,7 @@ struct Int32Eulers ofh_sp_eu;
 float phi_des;
 float theta_des;
 
-#define MAXBANK 25
+#define MAXBANK 10.0
 
 
 
@@ -202,13 +203,6 @@ uint32_t elc_time_start;
 int32_t count_covdiv;
 float lp_cov_div;
 bool isplus;
-
-
-
-
-
-
-
 
 
 
@@ -329,12 +323,13 @@ static void reset_horizontal_vars(void)
 	cov_flowX = 0.0f;
 	cov_flowY = 0.0f;
 
-	for(uint8_t i=0;i<of_hover_ctrl.window_size;i++)
+	for(uint16_t i=0;i<of_hover_ctrl.window_size;i++)
 	{
 		flowX_history[i] = 0.0f;
 		flowY_history[i] = 0.0f;
 		past_flowX_history[i] = 0.0f;
 		past_flowY_history[i] = 0.0f;
+		phi_history[i] = 0.0f;
 	}
 
 	vision_time = get_sys_time_float();
@@ -351,7 +346,7 @@ static void reset_vertical_vars(void)
 	regular_divergence = 0;
 	size_divergence = 0;
 
-	for(uint8_t i=0;i<of_hover_ctrl.window_size;i++)
+	for(uint16_t i=0;i<of_hover_ctrl.window_size;i++)
 	{
 		divergence_history[i] = 0.0f;
 		thrust_history[i] = 0.0f;
@@ -368,9 +363,6 @@ static void reset_vertical_vars(void)
 	// Temporary stuff depending on if it works
 	lp_cov_div = 0.0f;
 	count_covdiv = 0;
-
-
-
 
 	cov_divZ = 0.0f;
 	cov_array_filledZ = 0;
@@ -412,7 +404,6 @@ void horizontal_ctrl_module_run(bool in_flight)
 	 * VISION
 	 ***********/
 
-	// TODO: Figure out if LP factor isn't 1 all the time
 	Bound(of_hover_ctrl.lp_const, 0.001f, 1.f);
 	float lp_factor = dt / of_hover_ctrl.lp_const;
 	Bound(lp_factor, 0.f, 1.f);
@@ -425,7 +416,7 @@ void horizontal_ctrl_module_run(bool in_flight)
 	// low-pass filter the divergence:
 	of_hover_ctrl.flowX += (new_flowX - of_hover_ctrl.flowX) * lp_factor;
 	of_hover_ctrl.flowY += (new_flowY - of_hover_ctrl.flowY) * lp_factor;
-	prev_vision_timeXY = vision_time;
+//	prev_vision_timeXY = vision_time;
 
 	/***********
 	 * CONTROL
@@ -474,6 +465,7 @@ void horizontal_ctrl_module_run(bool in_flight)
 
 	// Run the stabilization mode
 	stabilization_attitude_set_rpy_setpoint_i(&ofh_sp_eu);
+	prev_vision_timeXY = vision_time;
 
 }
 
@@ -621,6 +613,9 @@ void set_cov_flow(void)
 	while (ind_past < 0) { ind_past += of_hover_ctrl.window_size; }
 	past_flowX_history[ind_histXY] = flowX_history[ind_past];
 	past_flowY_history[ind_histXY] = flowY_history[ind_past];
+	float normalized_phi = (float)(phi_des / (MAXBANK / 100.0));
+	phi_history[ind_histXY] = normalized_phi;
+//	printf("ind: %d, pastInd: %d, VT: %f, dt: %f\n",ind_histXY,ind_past,vision_time,(vision_time - prev_vision_timeXY));
 
 	// determine the covariance for hover detection:
 	// only take covariance into account if there are enough samples in the histories:
@@ -628,15 +623,21 @@ void set_cov_flow(void)
 	//		// TODO: step in hover set point causes an incorrectly perceived covariance
 	//		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
 	//	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledXY > 1){
-	if (cov_array_filledXY > 1){
+//	if (cov_array_filledXY > 1){
 		// todo: delay steps should be invariant to the run frequency
-		cov_flowX = covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
+		cov_flowX = covariance_f(phi_history, flowX_history, of_hover_ctrl.window_size);
+//		cov_flowX = covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
 		cov_flowY = covariance_f(past_flowY_history, flowY_history, of_hover_ctrl.window_size);
-	}
+//	}
+//	else
+//	{
+//		cov_flowX = 1000;
+//		cov_flowY = 1000;
+//	}
 
-	if (cov_array_filledXY < 2 && ind_histXY + 1 == of_hover_ctrl.window_size) {
-		cov_array_filledXY++;
-	}
+//	if (cov_array_filledXY < 2 && ind_histXY + 1 == of_hover_ctrl.window_size) {
+//		cov_array_filledXY++;
+//	}
 	ind_histXY = (ind_histXY + 1) % of_hover_ctrl.window_size;
 }
 

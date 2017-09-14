@@ -82,8 +82,8 @@ struct OpticalFlowHover {
 	float reduction_factorXY;      ///< Reduce the XY gains by this factor when oscillating
 	float reduction_factorZ;       ///< Reduce the Z gains by this factor when oscillating
 
-	uint8_t window_size;
-	uint8_t delay_steps;
+	uint16_t window_size;
+	uint16_t delay_steps;
 	float lp_const;                ///< low-pass filter constant
 	uint32_t COV_METHOD;           ///< method to calculate the covariance: between thrust and div (0) or div and div past (1)
 	bool ofmethode;				   ///< Select which Divergence to take, size_divergence or regular_divergence
