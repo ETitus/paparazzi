@@ -99,7 +99,7 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_COVFLOW_SETPOINT
-#define OFH_COVFLOW_SETPOINT -5000
+#define OFH_COVFLOW_SETPOINT -2000
 #endif
 // variables retained between module calls
 float vision_time, prev_vision_timeXY, prev_vision_timeZ;
@@ -255,7 +255,7 @@ void optical_flow_hover_init()
 	of_hover_ctrl.COV_METHOD = OFL_COV_METHOD;
 
 	oscphi = 1;
-	osctheta = 0;
+	osctheta = 1;
 
 	reset_horizontal_vars();
 	reset_vertical_vars();
@@ -335,6 +335,9 @@ static void reset_horizontal_vars(void)
 		theta_history[i] = 0.0f;
 	}
 
+	of_hover_ctrl.flowX = 0;
+	of_hover_ctrl.flowY = 0;
+
 	vision_time = get_sys_time_float();
 	prev_vision_timeXY = vision_time;
 }
@@ -379,6 +382,7 @@ static void reset_vertical_vars(void)
 
 	elc_time_start = vision_time;
 	isplus = 0;
+	of_hover_ctrl.divergence = 0;
 
 	height = (stateGetPositionEnu_i()->z)*0.0039063;
 }
@@ -632,10 +636,10 @@ void set_cov_flow(void)
 	// todo: delay steps should be invariant to the run frequency
 	cov_flowX = covariance_f(phi_history, flowX_history, of_hover_ctrl.window_size);
 	// Temporarily set covFlowY to log both
-	cov_flowY =covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
+//	cov_flowY =covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
 	//		cov_flowX = covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
 
-	//		cov_flowY = covariance_f(theta_history, flowY_history, of_hover_ctrl.window_size);
+			cov_flowY = covariance_f(theta_history, flowY_history, of_hover_ctrl.window_size);
 	//		cov_flowY = covariance_f(past_flowY_history, flowY_history, of_hover_ctrl.window_size);
 	//	}
 	//	else
@@ -675,7 +679,7 @@ void set_cov_div(int32_t thrust)
 		// TODO: step in hover set point causes an incorrectly perceived covariance
 		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
 		// temporarily set cov_flowX here to log both cov divs at the same time
-		cov_flowX = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
+//		cov_flowX = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
 	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1) {
 		// todo: delay steps should be invariant to the run frequency
 		cov_divZ = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
