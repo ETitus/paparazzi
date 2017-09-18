@@ -29,8 +29,8 @@
 
 
 
-#ifndef OPTICFLOW_CALCULATOR_H
-#define OPTICFLOW_CALCULATOR_H
+#ifndef OPTICFLOW_CALCULATOR_TITUS_H
+#define OPTICFLOW_CALCULATOR_TITUS_H
 
 #include "std.h"
 #include "inter_thread_data.h"
@@ -57,7 +57,7 @@ struct opticflow_t {
   float derotation_correction_factor_y;     ///< Correction factor for derotation in Y axis, determined from a fit from the gyros and flow rotation. (wrong FOV, camera not in center)
 
   uint16_t subpixel_factor;                 ///< The amount of subpixels per pixel
-  uint16_t resolution_factor;                 ///< The resolution in EdgeFlow to determine the Divergence
+  uint32_t resolution_factor;                 ///< The resolution in EdgeFlow to determine the Divergence
   uint8_t max_iterations;               ///< The maximum amount of iterations the Lucas Kanade algorithm should do
   uint8_t threshold_vec;                ///< The threshold in x, y subpixels which the algorithm should stop
   uint8_t pyramid_level;              ///< Number of pyramid levels used in Lucas Kanade algorithm (0 == no pyramids used)
@@ -70,8 +70,11 @@ struct opticflow_t {
 
   uint16_t fast9_rsize;             ///< Amount of corners allocated
   struct point_t *fast9_ret_corners;    ///< Corners
+  bool snapshot; 					///< used to make a snapshot
 };
 
+// Use it to take and save pictures
+bool takepicture;
 
 void opticflow_calc_init(struct opticflow_t *opticflow);
 void opticflow_calc_frame(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
@@ -81,7 +84,8 @@ void calc_fast9_lukas_kanade(struct opticflow_t *opticflow, struct opticflow_sta
                              struct opticflow_result_t *result);
 void calc_edgeflow_tot(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
                        struct opticflow_result_t *result);
-
+void calc_edgeflow_titus(struct opticflow_t *opticflow, struct opticflow_state_t *state, struct image_t *img,
+                       struct opticflow_result_t *result);
 void kalman_filter_opticflow_velocity(float *velocity_x, float *velocity_y, float *acceleration_measurement, float fps,
                                       float *measurement_noise, float process_noise, bool reinitialize_kalman);
 

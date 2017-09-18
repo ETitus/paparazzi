@@ -33,7 +33,7 @@
 		<module name="video_thread" />
 		<module name="pose_history" />
 		<module name="cv_opticflow">
-			<define name="OPTICFLOW_METHOD" value="0" />
+			<define name="OPTICFLOW_METHOD" value="1" />
 			<define name="OPTICFLOW_CAMERA" value="bottom_camera" />
 			<!-- define name="OPTICFLOW_SEARCH_DISTANCE" value="40" /-->
 		</module>
@@ -98,8 +98,8 @@
 		<define name="MAG_Y_CURRENT_COEF" value="0.0" />
 		<define name="MAG_Z_CURRENT_COEF" value="0.0" />
 
-		<define name="BODY_TO_IMU_PHI" value="-0.5" unit="deg" />
-		<define name="BODY_TO_IMU_THETA" value="3.50" unit="deg" />
+		<define name="BODY_TO_IMU_PHI" value="0.0" unit="deg" />
+		<define name="BODY_TO_IMU_THETA" value="3.0" unit="deg" />
 		<define name="BODY_TO_IMU_PSI" value="0.0" unit="deg" />
 	</section>
 
@@ -173,7 +173,7 @@
 
 	</section>
 
-	< section name="STABILIZATION_ATTITUDE_INDI" prefix="STABILIZATION_INDI_">
+	<section name="STABILIZATION_ATTITUDE_INDI" prefix="STABILIZATION_INDI_">
 		<!-- control effectiveness -->
 		<define name="G1_P" value="0.028551973" />
 		<define name="G1_Q" value="0.023775417" />
@@ -227,7 +227,7 @@
 	</section>
 
 	<section name="AUTOPILOT">
-		<define name="MODE_STARTUP" value="AP_MODE_ATTITUDE_DIRECT" />
+		<define name="MODE_STARTUP" value="AP_MODE_NAV" />
 		<define name="MODE_MANUAL" value="AP_MODE_MODULE" />
 		<define name="MODE_AUTO1" value="AP_MODE_ATTITUDE_DIRECT" />
 		<define name="MODE_AUTO2" value="AP_MODE_NAV" />

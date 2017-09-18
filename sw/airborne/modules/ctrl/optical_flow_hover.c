@@ -25,7 +25,8 @@
 PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 #ifndef OFH_LP_CONST
-#define OFH_LP_CONST 0.6
+#define OFH_LP_CONST 0.4 // EF
+//#define OFH_LP_CONST 0.6 // LK
 #endif
 
 #ifndef OFL_COV_METHOD
@@ -42,11 +43,13 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_PGAINZ
-#define OFH_PGAINZ 0.40
+#define OFH_PGAINZ 0.4 // EF
+//#define OFH_PGAINZ 0.40 // LK
 #endif
 
 #ifndef OFH_IGAINZ
-#define OFH_IGAINZ 0.005
+#define OFH_IGAINZ 0.005 // EF
+//#define OFH_IGAINZ 0.005 // LK
 #endif
 
 #ifndef OFH_DGAINZ
@@ -54,16 +57,20 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_RAMPZ
-#define OFH_RAMPZ 0.05
+#define OFH_RAMPZ 0.05 // EF
+//#define OFH_RAMPZ 0.05 // LK
 #endif
 
 #ifndef OFH_REDUCTIONZ
-#define OFH_REDUCTIONZ 0.6
+#define OFH_REDUCTIONZ 0.5
 #endif
 
 #ifndef OFH_COVDIV_SETPOINT
-#define OFH_COVDIV_SETPOINT -0.02
+#define OFH_COVDIV_SETPOINT -0.06 // EF
+//#define OFH_COVDIV_SETPOINT -0.02 // LK
 #endif
+
+
 
 #ifndef OFH_PGAINX
 #define OFH_PGAINX 0.0
@@ -130,7 +137,8 @@ float theta_des;
 
 #define MAXBANK 10.0
 
-
+float phi_des_start;
+float theta_des_start;
 
 bool oscillatingZ;
 float divergence_vision;
@@ -297,6 +305,14 @@ void horizontal_ctrl_module_init(void)
  */
 static void reset_horizontal_vars(void)
 {
+	struct Int32Eulers tempangle;
+	int32_eulers_of_quat(&tempangle,&stab_att_sp_quat);
+	phi_des_start = DegOfRad(FLOAT_OF_BFP(tempangle.phi,INT32_ANGLE_FRAC));;
+	theta_des_start = DegOfRad(FLOAT_OF_BFP(tempangle.theta,INT32_ANGLE_FRAC));;
+
+	phi_des = 0;
+	theta_des = 0;
+
 	oscillatingX = 0;
 	oscillatingY = 0;
 	flowX = 0;
@@ -313,11 +329,8 @@ static void reset_horizontal_vars(void)
 	pusedX = of_hover_ctrl.pgainX;
 	pusedY = of_hover_ctrl.pgainY;
 
-	phi_des = 0;
-	theta_des = 0;
-
-	ofh_sp_eu.phi = phi_des;
-	ofh_sp_eu.phi = theta_des;
+	ofh_sp_eu.phi = phi_des_start;
+	ofh_sp_eu.phi = theta_des_start;
 
 	ind_histXY = 0;
 	//	cov_array_filledXY = 0;
@@ -442,11 +455,11 @@ void horizontal_ctrl_module_run(bool in_flight)
 	// set desired pitch en roll
 	if(oscphi)
 	{
-		phi_des = PID_flow_control(of_hover_ctrl.flow_setpoint, pusedX, of_hover_ctrl.igainX, of_hover_ctrl.dgainX, dt, 0);
+		phi_des = phi_des_start + PID_flow_control(of_hover_ctrl.flow_setpoint, pusedX, of_hover_ctrl.igainX, of_hover_ctrl.dgainX, dt, 0);
 	}
 	if(osctheta)
 	{
-		theta_des = PID_flow_control(of_hover_ctrl.flow_setpoint, pusedY, of_hover_ctrl.igainY, of_hover_ctrl.dgainY, dt, 1);
+		theta_des = theta_des_start + PID_flow_control(of_hover_ctrl.flow_setpoint, pusedY, of_hover_ctrl.igainY, of_hover_ctrl.dgainY, dt, 1);
 	}
 
 	// update covariance
@@ -636,10 +649,10 @@ void set_cov_flow(void)
 	// todo: delay steps should be invariant to the run frequency
 	cov_flowX = covariance_f(phi_history, flowX_history, of_hover_ctrl.window_size);
 	// Temporarily set covFlowY to log both
-//	cov_flowY =covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
+	//	cov_flowY =covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
 	//		cov_flowX = covariance_f(past_flowX_history, flowX_history, of_hover_ctrl.window_size);
 
-			cov_flowY = covariance_f(theta_history, flowY_history, of_hover_ctrl.window_size);
+	cov_flowY = covariance_f(theta_history, flowY_history, of_hover_ctrl.window_size);
 	//		cov_flowY = covariance_f(past_flowY_history, flowY_history, of_hover_ctrl.window_size);
 	//	}
 	//	else
@@ -679,7 +692,7 @@ void set_cov_div(int32_t thrust)
 		// TODO: step in hover set point causes an incorrectly perceived covariance
 		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
 		// temporarily set cov_flowX here to log both cov divs at the same time
-//		cov_flowX = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
+		//		cov_flowX = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
 	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1) {
 		// todo: delay steps should be invariant to the run frequency
 		cov_divZ = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
