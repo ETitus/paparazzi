@@ -25,8 +25,9 @@
 PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 #ifndef OFH_LP_CONST
-#define OFH_LP_CONST 0.4 // EF
+//#define OFH_LP_CONST 0.4 // EF
 //#define OFH_LP_CONST 0.6 // LK
+#define OFH_LP_CONST 0.4 // LK BEBOP
 #endif
 
 #ifndef OFL_COV_METHOD
@@ -35,21 +36,25 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 // number of time steps used for calculating the covariance (oscillations) and the delay steps
 #ifndef OFH_COV_WINDOW_SIZE
-#define OFH_COV_WINDOW_SIZE (10*10)
+//#define OFH_COV_WINDOW_SIZE (10*15) // EF
+//#define OFH_COV_WINDOW_SIZE (10*10) // LK
+#define OFH_COV_WINDOW_SIZE (10*30) // LK BEBOP
 #endif
 
 #ifndef OFH_COV_DELAY_STEPS
-#define OFH_COV_DELAY_STEPS (5*10)
+//#define OFH_COV_DELAY_STEPS (5*15) // EF
+//#define OFH_COV_DELAY_STEPS (5*10) // LK
+#define OFH_COV_DELAY_STEPS (5*30) // LK BEBOP
 #endif
 
 #ifndef OFH_PGAINZ
-#define OFH_PGAINZ 0.4 // EF
-//#define OFH_PGAINZ 0.40 // LK
+//#define OFH_PGAINZ 0.4 // EF
+#define OFH_PGAINZ 0.4 // LK
 #endif
 
 #ifndef OFH_IGAINZ
-#define OFH_IGAINZ 0.005 // EF
-//#define OFH_IGAINZ 0.005 // LK
+//#define OFH_IGAINZ 0.005 // EF
+#define OFH_IGAINZ 0.005 // LK
 #endif
 
 #ifndef OFH_DGAINZ
@@ -57,27 +62,28 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_RAMPZ
-#define OFH_RAMPZ 0.05 // EF
+//#define OFH_RAMPZ 0.05 // EF
 //#define OFH_RAMPZ 0.05 // LK
+#define OFH_RAMPZ 0.15 // LK BEBOP
 #endif
 
 #ifndef OFH_REDUCTIONZ
-#define OFH_REDUCTIONZ 0.5
+#define OFH_REDUCTIONZ 0.45
 #endif
 
 #ifndef OFH_COVDIV_SETPOINT
-#define OFH_COVDIV_SETPOINT -0.06 // EF
+//#define OFH_COVDIV_SETPOINT -0.06 // EF
 //#define OFH_COVDIV_SETPOINT -0.02 // LK
+#define OFH_COVDIV_SETPOINT -0.02 // LK BEBOP
 #endif
-
-
 
 #ifndef OFH_PGAINX
 #define OFH_PGAINX 0.0
 #endif
 
 #ifndef OFH_IGAINX
-#define OFH_IGAINX 0.0001
+//#define OFH_IGAINX 0.0001 // LK
+#define OFH_IGAINX 0.00002 // LK BEBOP
 //#define OFH_IGAINX 0.0
 #endif
 
@@ -90,7 +96,9 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_IGAINY
-#define OFH_IGAINY 0.0001
+//#define OFH_IGAINY 0.0001 // LK
+#define OFH_IGAINY 0.00002 // LK BEBOP
+//#define OFH_IGAINY 0.0
 #endif
 
 #ifndef OFH_DGAINY
@@ -98,16 +106,21 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 #endif
 
 #ifndef OFH_RAMPXY
-#define OFH_RAMPXY 0.0004
+//#define OFH_RAMPXY 0.0004 // LK
+#define OFH_RAMPXY 0.0008 // LK BEBOP
 #endif
 
 #ifndef OFH_REDUCTIONXY
-#define OFH_REDUCTIONXY 0.4
+//#define OFH_REDUCTIONXY 0.4 // LK
+#define OFH_REDUCTIONXY 0.3 // LK BEBOP
 #endif
 
 #ifndef OFH_COVFLOW_SETPOINT
-#define OFH_COVFLOW_SETPOINT -2000
+//#define OFH_COVFLOW_SETPOINT -2000 // LK
+#define OFH_COVFLOW_SETPOINT -500 // LK BEBOP
 #endif
+
+
 // variables retained between module calls
 float vision_time, prev_vision_timeXY, prev_vision_timeZ;
 
@@ -313,8 +326,25 @@ static void reset_horizontal_vars(void)
 	phi_des = 0;
 	theta_des = 0;
 
+	//All axes
 	oscillatingX = 0;
 	oscillatingY = 0;
+	pusedX = of_hover_ctrl.pgainX;
+	pusedY = of_hover_ctrl.pgainY;
+
+
+	// Z- X - Y Order
+	//	oscillatingX = 1;
+	//	oscillatingY = 1;
+	//	pusedX = 0.003;
+	//	pusedY = 0.003;
+
+	// Z Set XY
+	//	oscillatingX = 1;
+	//	oscillatingY = 1;
+	//	pusedX = 0.001;
+	//	pusedY = 0.001;
+
 	flowX = 0;
 	flowY = 0;
 
@@ -325,9 +355,6 @@ static void reset_horizontal_vars(void)
 	of_hover_ctrl.sum_errY = 0.0f;
 	of_hover_ctrl.d_errY = 0.0f;
 	of_hover_ctrl.previous_errY = 0.0f;
-
-	pusedX = of_hover_ctrl.pgainX;
-	pusedY = of_hover_ctrl.pgainY;
 
 	ofh_sp_eu.phi = phi_des_start;
 	ofh_sp_eu.phi = theta_des_start;
@@ -364,6 +391,8 @@ static void reset_vertical_vars(void)
 
 	regular_divergence = 0;
 	size_divergence = 0;
+	divergence_vision = 0;
+	of_hover_ctrl.divergence = 0;
 
 	for(uint16_t i=0;i<of_hover_ctrl.window_size;i++)
 	{
@@ -378,11 +407,6 @@ static void reset_vertical_vars(void)
 
 	pusedZ = of_hover_ctrl.pgainZ;
 
-
-	// Temporary stuff depending on if it works
-	lp_cov_div = 0.0f;
-	count_covdiv = 0;
-
 	cov_divZ = 0.0f;
 	cov_array_filledZ = 0;
 
@@ -395,7 +419,7 @@ static void reset_vertical_vars(void)
 
 	elc_time_start = vision_time;
 	isplus = 0;
-	of_hover_ctrl.divergence = 0;
+
 
 	height = (stateGetPositionEnu_i()->z)*0.0039063;
 }
@@ -441,6 +465,7 @@ void horizontal_ctrl_module_run(bool in_flight)
 	/***********
 	 * CONTROL
 	 ***********/
+
 	if(!oscillatingX)
 	{
 		// if not oscillating, increase gain
@@ -472,13 +497,21 @@ void horizontal_ctrl_module_run(bool in_flight)
 	if( (cov_flowX<of_hover_ctrl.covFlow_set_point) && (!oscillatingX) )
 	{
 		oscillatingX = 1;
+
+		//Start the Y axis
+		//		oscillatingY = 0;
+		//		pusedY = of_hover_ctrl.pgainY;
+
 		pusedX = pusedX*of_hover_ctrl.reduction_factorXY;
-	}
-	if( (cov_flowY<of_hover_ctrl.covFlow_set_point) && (!oscillatingY) )
-	{
+
 		oscillatingY = 1;
-		pusedY = pusedY*of_hover_ctrl.reduction_factorXY;
+		pusedY = pusedX;
 	}
+//	if( (cov_flowY<of_hover_ctrl.covFlow_set_point) && (!oscillatingY) )
+//	{
+//		oscillatingY = 1;
+//		pusedY = pusedY*of_hover_ctrl.reduction_factorXY;
+//	}
 
 	// Compute 0, 1 or 2 horizontal axes with optitrack
 	computeOptiTrack(!oscphi,!osctheta,&ofh_sp_eu);
@@ -533,86 +566,57 @@ void vertical_ctrl_module_run(bool in_flight)
 	/***********
 	 * CONTROL
 	 ***********/
-
-	if(1)
+	if(!oscillatingZ)
 	{
-		if(!oscillatingZ)
-		{
-			// if not oscillating, increase gain
-			pusedZ += of_hover_ctrl.rampZ*dt;
-		}
-
-
-		if(0)
-		{
-			if((get_sys_time_float() - elc_time_start) >= 1.0f)
-			{
-				if(isplus)
-				{
-					of_hover_ctrl.divergence_setpoint = 0.01f;
-					isplus = 0;
-				}
-				else
-				{
-					of_hover_ctrl.divergence_setpoint = -0.01f;
-					isplus = 1;
-				}
-				elc_time_start = get_sys_time_float();
-			}
-		}
-
-
-		// use the divergence for control:
-		thrust_set = PID_divergence_control(of_hover_ctrl.divergence_setpoint, pusedZ, of_hover_ctrl.igainZ, of_hover_ctrl.dgainZ, dt);
-
-		// Check for oscillations
-		if(cov_divZ<of_hover_ctrl.covDiv_set_point && (!oscillatingZ))
-		{
-			oscillatingZ = 1;
-			of_hover_ctrl.divergence_setpoint = 0.0f;
-			printf("Height,%f,Gain,%f\n",height,pusedZ);
-			pusedZ = pusedZ*of_hover_ctrl.reduction_factorZ;
-		}
+		// if not oscillating, increase gain
+		pusedZ += of_hover_ctrl.rampZ*dt;
 	}
-	else
+
+
+	if(0)
 	{
-		// if not yet oscillating, increase the gains:
-		if (!oscillatingZ && cov_divZ > of_hover_ctrl.covDiv_set_point) {
-			float increasedGainZ = of_hover_ctrl.rampZ*dt;
-			float gain_factor = pusedZ / (pusedZ+increasedGainZ);
-			pusedZ += increasedGainZ;
-			of_hover_ctrl.igainZ *= gain_factor;
-			of_hover_ctrl.dgainZ *= gain_factor;
-		}
-
-		// use the divergence for control:
-		thrust_set = PID_divergence_control(of_hover_ctrl.divergence_setpoint, pusedZ, of_hover_ctrl.igainZ, of_hover_ctrl.dgainZ, dt);
-
-
-		// low pass filter cov div and remove outliers:
-		if (fabsf(lp_cov_div - cov_divZ) < 2.2) {
-			lp_cov_div = 0.99f * lp_cov_div + (1 - 0.99f) * cov_divZ;
-		}
-		// if oscillating, maintain a counter to see if it endures:
-		if (lp_cov_div <= -0.0075) {
-			count_covdiv++;
-		} else {
-			count_covdiv = 0;
+		if((get_sys_time_float() - elc_time_start) >= 1.0f)
+		{
+			if(isplus)
+			{
+				of_hover_ctrl.divergence_setpoint = 0.01f;
+				isplus = 0;
+			}
+			else
+			{
+				of_hover_ctrl.divergence_setpoint = -0.01f;
+				isplus = 1;
+			}
 			elc_time_start = get_sys_time_float();
 		}
-		// if the drone has been oscillating long enough, start landing:
-		if (!oscillatingZ && (count_covdiv > 0 && (get_sys_time_float() - elc_time_start) >= 1.5f)) {
-
-			// Oscillating:
-			oscillatingZ = 1;
-			printf("Height,%f,Gain,%f\n",height,pusedZ);
-
-			// we don't want to oscillate, so reduce the gain:
-			pusedZ = of_hover_ctrl.reduction_factorZ * pusedZ;
-			of_hover_ctrl.igainZ = of_hover_ctrl.reduction_factorZ * of_hover_ctrl.igainZ;
-			of_hover_ctrl.dgainZ = of_hover_ctrl.reduction_factorZ * of_hover_ctrl.dgainZ;
-		}
 	}
+
+
+	// use the divergence for control:
+	thrust_set = PID_divergence_control(of_hover_ctrl.divergence_setpoint, pusedZ, of_hover_ctrl.igainZ, of_hover_ctrl.dgainZ, dt);
+
+	// Check for oscillations
+	if(cov_divZ<of_hover_ctrl.covDiv_set_point && (!oscillatingZ))
+	{
+		float estimatedHeight = 0.995*pusedZ + 0.066; // ARDRONE2
+		oscillatingZ = 1;
+		of_hover_ctrl.divergence_setpoint = 0.0f;
+		printf("Height,%f,Gain,%f,estimatedHeight: %f\n",height,pusedZ,estimatedHeight);
+		pusedZ = pusedZ*of_hover_ctrl.reduction_factorZ;
+
+		//		Start the X axis
+		//		oscillatingX = 0;
+		//		pusedX = of_hover_ctrl.pgainX;
+
+		// Start XY axes with computed slope
+//		of_hover_ctrl.sum_errX = 0.0f;
+//		of_hover_ctrl.sum_errY = 0.0f;
+//		of_hover_ctrl.igainX = 0.0001;
+//		of_hover_ctrl.igainY = 0.0001;
+//		pusedX = 0.4*(estimatedHeight+0.341)/183.524;
+//		pusedY = 0.4*(estimatedHeight+0.341)/183.524;
+	}
+
 	stabilization_cmd[COMMAND_THRUST] = thrust_set;
 }
 
@@ -693,10 +697,11 @@ void set_cov_div(int32_t thrust)
 		cov_divZ = covariance_f(thrust_history, divergence_history, of_hover_ctrl.window_size);
 		// temporarily set cov_flowX here to log both cov divs at the same time
 		//		cov_flowX = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
-	} else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1) {
-		// todo: delay steps should be invariant to the run frequency
-		cov_divZ = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
 	}
+	//	else if (of_hover_ctrl.COV_METHOD == 1 && cov_array_filledZ > 1) {
+	//		// todo: delay steps should be invariant to the run frequency
+	//		cov_divZ = covariance_f(past_divergence_history, divergence_history, of_hover_ctrl.window_size);
+	//	}
 
 	if (cov_array_filledZ < 2 && ind_histZ + 1 == of_hover_ctrl.window_size) {
 		cov_array_filledZ++;

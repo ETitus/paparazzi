@@ -3,6 +3,7 @@
 <airframe name="tudelft_tb_bebop">
 	<firmware name="rotorcraft">
 		<target name="ap" board="bebop"/>
+		<define name="USE_SONAR" value="FALSE" />
 		
 		<module name="telemetry" type="transparent_udp"/>
 		<module name="radio_control" type="datalink"/>
@@ -18,7 +19,9 @@
 			<configure name="USE_MAGNETOMETER" value="FALSE"/> <!-- TURN ON OUTSIDE -->
 			<define name="AHRS_USE_GPS_HEADING" value="TRUE"/>
 		</module>
-		<module name="ins" type="extended"/>
+		<!--module name="ins" type="extended">
+		</module-->
+		<module name="ins" type="gps_passthrough"/>
     <!-- module name="guidance" type="indi"/-->
 		<!-- <module name="guidance" type="indi"> <define name="GUIDANCE_INDI_SPECIFIC_FORCE_GAIN" 
 			value="-500.0"/> <define name="GUIDANCE_INDI_THRUST_DYNAMICS" value="0.1"/> 
@@ -32,7 +35,7 @@
 			<define name="OPTICFLOW_CAMERA" value="bottom_camera"/>
 			<define name="OPTICFLOW_SEARCH_DISTANCE" value="40"/>
 		</module>
-		<module name="titusmodule"/>
+		<module name="optical_flow_hover" />
 	</modules>
 
 	<commands>
@@ -89,8 +92,8 @@
 	</section>
 
 	<section name="INS" prefix="INS_">
-		<define name="SONAR_MAX_RANGE" value="2.2"/>
-		<define name="SONAR_UPDATE_ON_AGL" value="TRUE"/>
+		<!-- define name="SONAR_MAX_RANGE" value="2.2"/>
+		<define name="SONAR_UPDATE_ON_AGL" value="TRUE"/-->
 		<!-- Optitrack -->
 		<define name="USE_GPS_ALT" value="1"/>
 		<define name="VFF_R_GPS" value="0.01"/>
