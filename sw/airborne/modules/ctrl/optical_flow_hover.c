@@ -69,6 +69,7 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 #ifndef OFH_REDUCTIONZ
 #define OFH_REDUCTIONZ 0.45
+//#define OFH_REDUCTIONZ 0.35 // VIDEO GAINS
 #endif
 
 #ifndef OFH_COVDIV_SETPOINT
@@ -79,6 +80,7 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 #ifndef OFH_PGAINX
 #define OFH_PGAINX 0.0
+//#define OFH_PGAINX 0.003 // VIDEO GAINS
 #endif
 
 #ifndef OFH_IGAINX
@@ -93,6 +95,7 @@ PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 #ifndef OFH_PGAINY
 #define OFH_PGAINY 0.0
+//#define OFH_PGAINY 0.003 // VIDEO GAINS
 #endif
 
 #ifndef OFH_IGAINY
@@ -327,10 +330,10 @@ static void reset_horizontal_vars(void)
 	theta_des = 0;
 
 	//All axes
-	oscillatingX = 0;
-	oscillatingY = 0;
-	pusedX = of_hover_ctrl.pgainX;
-	pusedY = of_hover_ctrl.pgainY;
+		oscillatingX = 0;
+		oscillatingY = 0;
+		pusedX = of_hover_ctrl.pgainX;
+		pusedY = of_hover_ctrl.pgainY;
 
 
 	// Z- X - Y Order
@@ -338,12 +341,17 @@ static void reset_horizontal_vars(void)
 	//	oscillatingY = 1;
 	//	pusedX = 0.003;
 	//	pusedY = 0.003;
+	//	// Video gains
+	//	pusedX = 0.006;
+	//	pusedY = 0.006;
 
 	// Z Set XY
-	//	oscillatingX = 1;
-	//	oscillatingY = 1;
-	//	pusedX = 0.001;
-	//	pusedY = 0.001;
+//	oscillatingX = 1;
+//	oscillatingY = 1;
+//	pusedX = 0.003;
+//	pusedY = 0.003;
+//	of_hover_ctrl.igainX = 0.000005;
+//	of_hover_ctrl.igainY = 0.000005;
 
 	flowX = 0;
 	flowY = 0;
@@ -499,19 +507,20 @@ void horizontal_ctrl_module_run(bool in_flight)
 		oscillatingX = 1;
 
 		//Start the Y axis
-		//		oscillatingY = 0;
-		//		pusedY = of_hover_ctrl.pgainY;
+//		oscillatingY = 0;
+//		pusedY = of_hover_ctrl.pgainY;
 
 		pusedX = pusedX*of_hover_ctrl.reduction_factorXY;
 
-		oscillatingY = 1;
-		pusedY = pusedX;
+		// also set Y
+				oscillatingY = 1;
+				pusedY = pusedX;
 	}
-//	if( (cov_flowY<of_hover_ctrl.covFlow_set_point) && (!oscillatingY) )
-//	{
-//		oscillatingY = 1;
-//		pusedY = pusedY*of_hover_ctrl.reduction_factorXY;
-//	}
+	if( (cov_flowY<of_hover_ctrl.covFlow_set_point) && (!oscillatingY) )
+	{
+		oscillatingY = 1;
+		pusedY = pusedY*of_hover_ctrl.reduction_factorXY;
+	}
 
 	// Compute 0, 1 or 2 horizontal axes with optitrack
 	computeOptiTrack(!oscphi,!osctheta,&ofh_sp_eu);
@@ -573,23 +582,23 @@ void vertical_ctrl_module_run(bool in_flight)
 	}
 
 
-	if(0)
-	{
-		if((get_sys_time_float() - elc_time_start) >= 1.0f)
-		{
-			if(isplus)
-			{
-				of_hover_ctrl.divergence_setpoint = 0.01f;
-				isplus = 0;
-			}
-			else
-			{
-				of_hover_ctrl.divergence_setpoint = -0.01f;
-				isplus = 1;
-			}
-			elc_time_start = get_sys_time_float();
-		}
-	}
+	//	if(0)
+	//	{
+	//		if((get_sys_time_float() - elc_time_start) >= 1.0f)
+	//		{
+	//			if(isplus)
+	//			{
+	//				of_hover_ctrl.divergence_setpoint = 0.01f;
+	//				isplus = 0;
+	//			}
+	//			else
+	//			{
+	//				of_hover_ctrl.divergence_setpoint = -0.01f;
+	//				isplus = 1;
+	//			}
+	//			elc_time_start = get_sys_time_float();
+	//		}
+	//	}
 
 
 	// use the divergence for control:
@@ -609,10 +618,10 @@ void vertical_ctrl_module_run(bool in_flight)
 		//		pusedX = of_hover_ctrl.pgainX;
 
 		// Start XY axes with computed slope
-//		of_hover_ctrl.sum_errX = 0.0f;
-//		of_hover_ctrl.sum_errY = 0.0f;
-//		of_hover_ctrl.igainX = 0.0001;
-//		of_hover_ctrl.igainY = 0.0001;
+//						of_hover_ctrl.sum_errX = 0.0f;
+//						of_hover_ctrl.sum_errY = 0.0f;
+//						of_hover_ctrl.igainX = 0.0001;
+//						of_hover_ctrl.igainY = 0.0001;
 //		pusedX = 0.4*(estimatedHeight+0.341)/183.524;
 //		pusedY = 0.4*(estimatedHeight+0.341)/183.524;
 	}
