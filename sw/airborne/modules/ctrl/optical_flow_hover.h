@@ -22,8 +22,6 @@
 #define OPTICAL_FLOW_HOVER_H_
 
 #include "std.h"
-
-
 // Without optitrack set to: GUIDANCE_V/H_MODE_ATTITUDE
 // With optitrack set to: GUIDANCE_V/H_MODE_NAV
 // To use the Optical Flow Hover module use GUIDANCE_V/H_MODE_MODULE
@@ -37,59 +35,14 @@
 bool oscphi;
 bool osctheta;
 bool derotated;
+bool cov_method; 			   ///< method to calculate the covariance: between thrust and div / angle and flow (0) or div and div past / flow and past flow(1)
+uint8_t hover_method;		   ///< Method used to hover 0 = All axis after each other; 1 = all axis at the same time; 2 = vertical only, use relation to set horizontal
 
-struct OpticalFlowHover {
-	float pgainX;                  ///< P-gain for constant divergence control (from divergence error to thrust)
-	float igainX;                  ///< I-gain for constant divergence control
-	float dgainX;                  ///< D-gain for constant divergence control
-
-	float pgainY;                  ///< P-gain for constant divergence control (from divergence error to thrust)
-	float igainY;                  ///< I-gain for constant divergence control
-	float dgainY;                  ///< D-gain for constant divergence control
-
-	float pgainZ;                  ///< P-gain for constant divergence control (from divergence error to thrust)
-	float igainZ;                  ///< I-gain for constant divergence control
-	float dgainZ;                  ///< D-gain for constant divergence control
-
-	float rampXY;				   ///< The ramp pused is increased with per dt
-	float rampZ;				   ///< The ramp pused is increased with per dt
-
-	float divergence;              ///< Divergence estimate
-	float flowX;			       ///< Flow estimate in X direction
-	float flowY;			       ///< Flow estimate in Y direction
-
-	float previous_errX;           ///< Previous divergence tracking error
-	float sum_errX;                ///< integration of the error for I-gain
-	float d_errX;                  ///< difference of error for the D-gain
-
-	float previous_errY;           ///< Previous divergence tracking error
-	float sum_errY;                ///< integration of the error for I-gain
-	float d_errY;                  ///< difference of error for the D-gain
-
-	float previous_errZ;           ///< Previous divergence tracking error
-	float sum_errZ;                ///< integration of the error for I-gain
-	float d_errZ;                  ///< difference of error for the D-gain
-
-	float nominal_thrust;          ///< nominal thrust around which the PID-control operates
-
-
-	float divergence_setpoint;     ///< setpoint for constant divergence approach
-	float covDiv_set_point;        ///< for adaptive gain control, setpoint of the covariance (oscillations)
-
-	float flow_setpoint;         ///< setpoint for constant divergence approach
-	float covFlow_set_point;       ///< for adaptive gain control, setpoint of the covariance (oscillations)
-
-	float reduction_factorXY;      ///< Reduce the XY gains by this factor when oscillating
-	float reduction_factorZ;       ///< Reduce the Z gains by this factor when oscillating
-
-	uint16_t window_size;
-	uint16_t delay_steps;
-	float lp_const;                ///< low-pass filter constant
-	uint32_t COV_METHOD;           ///< method to calculate the covariance: between thrust and div (0) or div and div past (1)
-	bool ofmethode;				   ///< Select which Divergence to take, size_divergence or regular_divergence
-};
-
-extern struct OpticalFlowHover of_hover_ctrl;
+extern struct OpticalFlowHover of_hover;
+extern struct NominalValues of_hover_nominal;
+extern struct OpticalFlowHoverControl of_hover_ctrl_X;
+extern struct OpticalFlowHoverControl of_hover_ctrl_Y;
+extern struct OpticalFlowHoverControl of_hover_ctrl_Z;
 
 // The module functions
 extern void optical_flow_hover_init(void);

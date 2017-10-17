@@ -520,7 +520,7 @@ void set_cov_div(int32_t thrust)
   // histories and cov detection:
   divergence_history[ind_hist] = of_landing_ctrl.divergence;
 
-  normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
+  normalized_thrust = (float)(100.0 * thrust / MAX_PPRZ);
   thrust_history[ind_hist] = normalized_thrust;
 
   int ind_past = ind_hist - of_landing_ctrl.delay_steps;
