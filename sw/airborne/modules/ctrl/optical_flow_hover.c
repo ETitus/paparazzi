@@ -158,7 +158,7 @@ struct OpticalFlowHoverControl of_hover_ctrl_Z;
 
 /// Function definitions
 // Callback function of the optical flow estimate:
-void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div, float dist);
+void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div);
 
 // common functions for different hover strategies:
 static void set_cov_div(int32_t thrust);
@@ -730,7 +730,7 @@ int32_t PID_divergence_control(float dt, struct OpticalFlowHoverControl *of_hove
 
 
 
-void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div, float dist)
+void ofh_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, float quality, float size_div)
 {
 	if(!derotated)
 	{
