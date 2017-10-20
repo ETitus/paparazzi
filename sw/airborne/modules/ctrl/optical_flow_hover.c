@@ -23,7 +23,7 @@
 PRINT_CONFIG_VAR(OFH_OPTICAL_FLOW_ID)
 
 #ifndef OFH_HOVER_METHOD
-#define OFH_HOVER_METHOD 0
+#define OFH_HOVER_METHOD 1
 #endif
 
 #ifndef XY_SYMMETRICAL
@@ -284,7 +284,7 @@ static void reset_horizontal_vars(void)
 	phi_des = 0;
 	theta_des = 0;
 
-	if(hover_method == 0)
+	if((hover_method == 0) && (GUIDANCE_V_MODE_MODULE_SETTING == GUIDANCE_V_MODE_MODULE))
 	{
 		// Z- X - Y Order
 		oscillatingX = 1;
@@ -300,7 +300,7 @@ static void reset_horizontal_vars(void)
 		of_hover_ctrl_X.PID.P = OFH_PGAINX;
 		of_hover_ctrl_Y.PID.P = OFH_PGAINX;
 	}
-	else
+	else if((hover_method == 2) && (GUIDANCE_V_MODE_MODULE_SETTING == GUIDANCE_V_MODE_MODULE))
 	{
 		// Z Set XY
 		oscillatingX = 1;
@@ -372,6 +372,8 @@ static void reset_vertical_vars(void)
 	cov_divZ = 0.0f;
 	cov_array_filledZ = 0;
 
+	of_hover_ctrl_Z.PID.P = OFH_PGAINZ;
+
 	of_hover_ctrl_Z.errors.sum_err = 0.0f;
 	of_hover_ctrl_Z.errors.d_err = 0.0f;
 	of_hover_ctrl_Z.errors.previous_err = 0.0f;
@@ -417,7 +419,7 @@ void horizontal_ctrl_module_run(bool in_flight)
 	// low-pass filter the divergence:
 	of_hover.flowX += (new_flowX - of_hover.flowX) * lp_factor;
 	of_hover.flowY += (new_flowY - of_hover.flowY) * lp_factor;
-	//	prev_vision_timeXY = vision_time;
+
 
 	/***********
 	 * CONTROL
@@ -581,7 +583,6 @@ void vertical_ctrl_module_run(bool in_flight)
 		float estimatedHeight = 0.995*of_hover_ctrl_Z.PID.P + 0.066; // ARDRONE2
 		oscillatingZ = 1;
 		of_hover_ctrl_Z.setpoint = 0.0f;
-		printf("Height,%f,Gain,%f,estimatedHeight: %f\n",height,of_hover_ctrl_Z.PID.P,estimatedHeight);
 		of_hover_ctrl_Z.PID.P = of_hover_ctrl_Z.PID.P*of_hover_ctrl_Z.reduction_factor;
 
 		if(hover_method == 0)
@@ -596,7 +597,7 @@ void vertical_ctrl_module_run(bool in_flight)
 			//All axes
 
 		}
-		else
+		else if(hover_method == 2)
 		{
 			// Start XY axes with computed slope
 			of_hover_ctrl_X.errors.sum_err = 0.0f;

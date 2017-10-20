@@ -38,8 +38,10 @@
 		</module>
 		
 		<module name="optical_flow_hover" >
+			<define name="OFH_HOVER_METHOD" value = "1" />
+			<define name="XY_SYMMETRICAL" value = "0" />
+		
 			<define name="OFH_MAXBANK" value = "10" />
-			<define name="XY_SYMMETRICAL" value = "1" />
 			<define name="LP_CONST" value = "0.6" />
 			<define name="OFH_COV_WINDOW_SIZE" value = "100" />
 			<define name="OFH_COV_DELAY_STEPS" value = "50" />

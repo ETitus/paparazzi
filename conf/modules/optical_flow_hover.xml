@@ -16,8 +16,8 @@
 		<dl_settings>
 			 <dl_settings name="OpticalFlowHover">
 			 	<dl_settings name="General">
-			 		<dl_setting var="cov_method" min="0" step="1" max="1" values="input / past" module="ctrl/optical_flow_hover" shortname="COV_METHOD" param="OFH_COV_METHOD"/>
-			 		<dl_setting var="hover_method" min="0" step="1" max="2" values="Sub / Same / Smart" module="ctrl/optical_flow_hover" shortname="HOVER_METHOD" param="OFH_HOVER_METHOD"/>
+			 		<dl_setting var="cov_method" min="0" step="1" max="1" values="input|past" module="ctrl/optical_flow_hover" shortname="COV_METHOD" param="OFH_COV_METHOD"/>
+			 		<dl_setting var="hover_method" min="0" step="1" max="2" values="Sub|Same|Smart" module="ctrl/optical_flow_hover" shortname="HOVER_METHOD" param="OFH_HOVER_METHOD"/>
 			 	</dl_settings>		        
 			 	<dl_settings name="Vertical">
 		        	<dl_setting var="of_hover_ctrl_Z.cov_setpoint" min="-5.05" step="0.00001" max="0" module="ctrl/optical_flow_hover" shortname="covDiv_set_point" param="OFH_COVDIV_SETPOINT"/>
@@ -25,8 +25,7 @@
 		        	<dl_setting var="of_hover_ctrl_Z.reduction_factor" min="0.1" step="0.01" max="1" module="ctrl/optical_flow_hover" shortname="reduction_factorZ" param="OFH_REDUCTIONZ"/>
 		        	<dl_setting var="of_hover_ctrl_Z.PID.P" min="0" step="0.01" max="1" module="ctrl/optical_flow_hover" shortname="pgainZ"/>
 		        	<dl_setting var="of_hover_ctrl_Z.PID.I" min="0" step="0.001" max="0.1" module="ctrl/optical_flow_hover" shortname="igainZ" param="OFH_IGAINZ"/>
-		        	<dl_setting var="of_hover_ctrl_Z.PID.D" min="0" step="0.01" max="1" module="ctrl/optical_flow_hover" shortname="dgainZ" param="OFH_DGAINZ"/>
-		        	
+		        	<dl_setting var="of_hover_ctrl_Z.PID.D" min="0" step="0.01" max="1" module="ctrl/optical_flow_hover" shortname="dgainZ" param="OFH_DGAINZ"/>		        	
              	</dl_settings>		        
              	<dl_settings name="Horizontal">
              		<dl_setting var="of_hover_ctrl_X.cov_setpoint" min="-100000" step="100" max="10000" module="ctrl/optical_flow_hover" shortname="covFlow_set_pointX" param="OFH_COVDIV_SETPOINT"/>
